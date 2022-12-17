@@ -1,10 +1,47 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title>base (idk what to put yet)</title>
+  <title>Attendance System</title>
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
 </head>
 <body>
+  <nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <a class="navbar-brand" href="#">Attendance System</a>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ml-auto">
+          <li class="nav-item active">
+            <span class="nav-link">
+              <script src="{{ url_for('static', filename='assets/js/app.js') }}"></script>
+              <span id="time"></span>
+            </span>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">User</a>
+          </li>
+          <li class="nav-item">
+            <a class="nav-link" href="#">Logout</a>
+          </li>
+      </ul>
+    </div>
+  </nav>
 
+  <div class="row">
+    <div class="col-md-2 d-flex flex-column sidebar bg-light">
+      <nav class="nav flex-column">
+        <a class="nav-link active" href="#">Dashboard</a>
+        <a class="nav-link" href="#">Start Class Attendance</a>
+        <a class="nav-link" href="#">Edit Classes</a>
+        <a class="nav-link" href="#">Register New User</a>
+        <a class="nav-link" href="#">Train Model</a>
+        <a class="nav-link" href="#">View Attendance Report</a>
+      </nav>
+    </div>
+    <div class="col-md-10">
+      {% block content %} {% endblock %}
+    </div>
+  </div>
 </body>
 </html>
