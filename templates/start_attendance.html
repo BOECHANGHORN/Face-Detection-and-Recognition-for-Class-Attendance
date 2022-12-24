@@ -1,10 +1,15 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Title</title>
-</head>
-<body>
-    <img src="{{ url_for('start_attendance') }}">
-</body>
-</html>
+{% extends 'base.html' %}
+
+{% block content %}
+
+    <img src="{{ url_for('video_feed') }}">
+    <div class="col-md-6">
+        <div class="card shadow">
+          <div class="card-body">
+            <h5 class="card-title">Face Database Statistics</h5>
+            <p>Total face encodings: 100</p>
+          </div>
+        </div>
+    </div>
+
+{% endblock %}
