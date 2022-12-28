@@ -3,7 +3,6 @@ import numpy as np
 from flask import Flask, render_template, request, redirect, url_for, Response
 import cv2
 import os
-# import mysql.connector
 
 app = Flask(__name__)
 app.config['MYSQL_URI'] = 'mysql://root:password123@localhost/Attendance_System'
@@ -17,30 +16,69 @@ def index():
     return render_template('login.html')
 
 
-# password123
-# @app.route('/login', methods=['GET', 'POST'])
-# def login():
-#     if request.method == 'POST':
-#         # Get the form data
-#         username = request.form['username']
-#         password = request.form['password']
+# import face_recognition
+# import flask
 #
-#         # Connect to the database
-#         conn = mysql.connector.connect(user='root', password='password123', host='localhost', database='Attendance_System')
-#         cursor = conn.cursor()
+# # Load the Haar cascade for eye detection
+# eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
 #
-#         # Check the credentials
-#         cursor.execute("SELECT * FROM users WHERE username=%s AND password=%s", (username, password))
-#         result = cursor.fetchone()
-#         if result:
-#             # Redirect to the attendance page
-#             return redirect(url_for('attendance'))
+# # Initialize a Flask app
+# app = flask.Flask(__name__)
+#
+# @app.route('/')
+# def index():
+#     # Capture frames from the camera
+#     capture = cv2.VideoCapture(0)
+#
+#     face_encodings = []
+#     while len(face_encodings) < 30:
+#         # Read a frame from the camera
+#         _, frame = capture.read()
+#
+#         # Convert the frame to grayscale
+#         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+#
+#         # Detect eyes in the frame
+#         eyes = eye_cascade.detectMultiScale(gray, 1.3, 5)
+#
+#         # If eyes are not detected, alert the user to open their eyes
+#         if len(eyes) == 0:
+#             cv2.putText(frame, "Please open your eyes", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+#
+#         # Detect facial landmarks in the frame using the face_recognition library
+#         landmarks = face_recognition.face_landmarks(frame)
+#
+#         # If facial landmarks are not detected, alert the user to show a frontal face
+#         if landmarks is None:
+#             cv2.putText(frame, "Please show a frontal face", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+#
+#         # If eyes and facial landmarks are detected, extract face encodings using the face_recognition library
 #         else:
-#             # Redirect back to the login page
-#             return redirect(url_for('login'))
-#     else:
-#         # Render the login template
-#         return render_template('login.html')
+#             encodings = face_recognition.face_encodings(frame)
+#
+#             # Add the encodings to the list of face encodings
+#             face_encodings.extend(encodings)
+#
+#         # Display the frame
+#         cv2.imshow('Frame', frame)
+#
+#         # Break the loop if the user presses 'q'
+#         if cv2.waitKey(1) & 0xFF == ord('q'):
+#             break
+#
+#     # Release the camera
+#     capture.release()
+#     cv2.destroyAllWindows()
+#
+#     # Save the face encodings to a file
+#     np.save('face_encodings.npy', face_encodings)
+#
+#     # Return a success message
+#     return "Successfully recorded face encodings"
+#
+# if __name__ == '__main__':
+#     app.run()
+
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -110,7 +148,7 @@ def record_attendance():
             match_index = np.argmin(distance)
 
             if matches[match_index]:
-
+                pass    # TODO: from youtube video
 
         # Encode the frame in JPEG format
         ret, jpeg = cv2.imencode('.jpg', frame)
