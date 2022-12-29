@@ -172,6 +172,24 @@ def record_attendance():
     cap.set(3, 1280)
     cap.set(4, 720)
 
+    # Get a reference to the bucket
+    bucket = storage.bucket()
+
+    # Initialize an empty dictionary
+    encodings = {}
+
+    # Loop through the lecturer and student folders
+    for user_type in ['lecturer', 'student']:
+        # Get the serialized file from the storage
+        serialized_file = bucket.get_blob(f'pickle/{user_type}.pkl')
+
+        # Deserialize the file and store the data in the dictionary
+        data = pickle.loads(serialized_file.download_as_string())
+        for item in data:
+            id = item[0]
+            encoding = item[1]
+            encodings[id] = encoding
+
     # Keep capturing frames until the program is interrupted
     while True:
         # Capture a frame from the webcam
@@ -186,18 +204,23 @@ def record_attendance():
         face_location = face_recognition.face_locations(resized_frame)
         encoded_frame = face_recognition.face_encodings(resized_frame, face_location)
 
+        # Comparison loop
         for face_encode, face_location in zip(encoded_frame, face_location):
-            # TODO: Pass in ENCODE_LIST_KNOWN after generating encodings from the list of files
-            matches = face_recognition.compare_faces(ENCODE_LIST_KNOWN, face_encode)
-            distance = face_recognition.face_distance(ENCODE_LIST_KNOWN, face_encode)
+            # Pass the values in the encodings dictionary to compare_faces and face_distance
+            matches = face_recognition.compare_faces(list(encodings.values()), face_encode)
+            distance = face_recognition.face_distance(list(encodings.values()), face_encode)
 
-            match_index = np.argmin(distance)
-
-            if matches[match_index]:
-                pass  # TODO: from youtube video
+            # Check if there are any matches
+            if any(matches):
+                match_index = np.argmin(distance)
+                # Get the id of the matching encoding
+                id = list(encodings.keys())[list(encodings.values()).index(encodings[match_index])]
+                # Draw rectangles around the detected faces
+                for (top, right, bottom, left) in face_location:
+                    cv2.rectangle(resized_frame, (left*4, top*4), (right*4, bottom*4), (0, 0, 255), 2)
 
         # Encode the frame in JPEG format
-        ret, jpeg = cv2.imencode('.jpg', frame)
+        ret, jpeg = cv2.imencode('.jpg', resized_frame)
 
         # Return the frame as a response
         yield (b'--frame\r\n'
