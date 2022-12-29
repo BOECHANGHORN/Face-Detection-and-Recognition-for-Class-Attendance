@@ -1,0 +1,38 @@
+.flash-area {
+  width: 100%;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.flash-message {
+  display: inline-block;
+  background-color: darkcyan;
+  color: white;
+  padding: 14px 20px;
+  border-radius: 4px;
+  font-size: 16px;
+}
+
+.train-model-button-container {
+  width: 100%;
+  text-align: center;
+}
+
+#train-model-button {
+  background-color: #4CAF50;
+  border: none;
+  color: white;
+  padding: 16px 32px;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 16px;
+  margin: 4px 2px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+#train-model-button:hover {
+  background-color: #45a049;
+}
+

@@ -19,10 +19,12 @@
             </span>
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#">User</a>
+            {% if 'userid' in session %}
+                <p class="nav-link">{{ session['userid'] }}</p>
+            {% endif %}
           </li>
           <li class="nav-item">
-            <a class="nav-link" href="#">Logout</a>
+            <a class="nav-link" href="{{ url_for('login') }}">Logout</a>
           </li>
       </ul>
     </div>
@@ -34,8 +36,8 @@
         <a class="nav-link active" href="{{ url_for('dashboard') }}">Dashboard</a>
         <a class="nav-link" href="{{ url_for('start_attendance') }}">Start Class Attendance</a>
         <a class="nav-link" href="#">Edit Classes</a>
-        <a class="nav-link" href="#">Register New User</a>
-        <a class="nav-link" href="#">Train Model</a>
+        <a class="nav-link" href="{{ url_for('register_new_user') }}">Register New User</a>
+        <a class="nav-link" href="{{ url_for('train_model') }}">Train Model</a>
         <a class="nav-link" href="#">View Attendance Report</a>
       </nav>
     </div>

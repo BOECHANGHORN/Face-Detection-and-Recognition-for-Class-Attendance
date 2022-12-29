@@ -1,84 +1,29 @@
+import os
+import pickle
+from datetime import datetime
 import face_recognition
 import numpy as np
-from flask import Flask, render_template, request, redirect, url_for, Response
+from flask import Flask, render_template, request, redirect, url_for, Response, flash, session
 import cv2
-import os
+import firebase_admin
+from firebase_admin import credentials, storage, db
 
 app = Flask(__name__)
-app.config['MYSQL_URI'] = 'mysql://root:password123@localhost/Attendance_System'
+app.secret_key = 'fyp1facerecognitionattendancesystem'
 
-
-folderPath = 'static/Images'
+# Load the Firebase credentials
+cred = credentials.Certificate("serviceAccountKey.json")
+firebase_admin.initialize_app(cred, {
+    'databaseURL': "https://fyp1-d54dc-default-rtdb.asia-southeast1.firebasedatabase.app/",
+    'storageBucket': "fyp1-d54dc.appspot.com"
+})
 
 
 @app.route('/')
 def index():
+    # Clear the session data
+    session.clear()
     return render_template('login.html')
-
-
-# import face_recognition
-# import flask
-#
-# # Load the Haar cascade for eye detection
-# eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
-#
-# # Initialize a Flask app
-# app = flask.Flask(__name__)
-#
-# @app.route('/')
-# def index():
-#     # Capture frames from the camera
-#     capture = cv2.VideoCapture(0)
-#
-#     face_encodings = []
-#     while len(face_encodings) < 30:
-#         # Read a frame from the camera
-#         _, frame = capture.read()
-#
-#         # Convert the frame to grayscale
-#         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-#
-#         # Detect eyes in the frame
-#         eyes = eye_cascade.detectMultiScale(gray, 1.3, 5)
-#
-#         # If eyes are not detected, alert the user to open their eyes
-#         if len(eyes) == 0:
-#             cv2.putText(frame, "Please open your eyes", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-#
-#         # Detect facial landmarks in the frame using the face_recognition library
-#         landmarks = face_recognition.face_landmarks(frame)
-#
-#         # If facial landmarks are not detected, alert the user to show a frontal face
-#         if landmarks is None:
-#             cv2.putText(frame, "Please show a frontal face", (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-#
-#         # If eyes and facial landmarks are detected, extract face encodings using the face_recognition library
-#         else:
-#             encodings = face_recognition.face_encodings(frame)
-#
-#             # Add the encodings to the list of face encodings
-#             face_encodings.extend(encodings)
-#
-#         # Display the frame
-#         cv2.imshow('Frame', frame)
-#
-#         # Break the loop if the user presses 'q'
-#         if cv2.waitKey(1) & 0xFF == ord('q'):
-#             break
-#
-#     # Release the camera
-#     capture.release()
-#     cv2.destroyAllWindows()
-#
-#     # Save the face encodings to a file
-#     np.save('face_encodings.npy', face_encodings)
-#
-#     # Return a success message
-#     return "Successfully recorded face encodings"
-#
-# if __name__ == '__main__':
-#     app.run()
-
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -91,6 +36,8 @@ def login():
         # Check the credentials
         # TODO: ADD DATABASE
         if username == 'admin' and password == 'adminadmin':
+            # Set the session userid
+            session['userid'] = username
             # Redirect to the attendance page
             return redirect(url_for('dashboard'))
         else:
@@ -109,6 +56,105 @@ def dashboard():
 @app.route('/start_attendance')
 def start_attendance():
     return render_template('start_attendance.html')
+
+
+@app.route('/register_new_user', methods=['GET', 'POST'])
+def register_new_user():
+    if request.method == 'POST':
+
+        # Get the form data from the request
+        user_type = request.form['user_type']
+        name = request.form['name']
+        id = request.form['id']
+        password = request.form['password']
+        image = request.files['image']
+
+        # TODO: comment this if not needed for validation
+        # Save the image to a temporary location
+        image.save('static/Images/tmp.jpg')
+
+        # Get a reference to the storage bucket and create a blob
+        bucket = storage.bucket()
+        blob = bucket.blob(f'{user_type}/{id}/{id}.jpg')
+
+        # Upload the image to the blob
+        image.seek(0)
+        blob.upload_from_file(image)
+
+        # Add the user data to the Realtime Database
+        ref = db.reference(user_type)
+        ref.child(id).set({
+            'name': name,
+            'password': password,
+            'image_url': blob.public_url
+        })
+
+        # Redirect to the success page
+        return redirect(url_for('register_success'))
+    else:
+        # Render the register form template
+        return render_template('register_new_user.html')
+
+
+@app.route('/register_success')
+def register_success():
+    return render_template('register_success.html')
+
+
+@app.route('/train_model', methods=['GET', 'POST'])
+def train_model():
+    if request.method == 'POST':
+        # Get a reference to the bucket
+        bucket = storage.bucket()
+
+        # Loop through the lecturer and student folders
+        for user_type in ['lecturer', 'student']:
+            encodings = []
+
+            # Get a reference from the realtime database
+            collection_ref = db.reference(user_type).get()
+
+            # Loop through the documents in the collection
+            for id, data in collection_ref.items():
+                # Get the image blob from the storage
+                image_blob = bucket.get_blob(f'{user_type}/{id}/{id}.jpg')
+
+                # Skip processing if the image blob is None
+                if image_blob is None:
+                    continue
+
+                # Read the image data as an array using cv2
+                image_array = np.frombuffer(image_blob.download_as_string(), np.uint8)
+                image = cv2.imdecode(image_array, cv2.COLOR_BGRA2BGR)
+
+                # Pass the image array to the generate_encodings function
+                encoding = generate_encodings([image])
+                if not encoding:
+                    flash(f"No face detected for {user_type} : {id}", "danger")
+
+                # Add the id and encoding to the encodings list
+                encodings.append([id, encoding])
+
+            # Serialize the encoding list and name it with the user_type
+            serialized_encoding = pickle.dumps(encodings)
+            serialized_file = f'pickle/{user_type}.pkl'
+
+            # Upload the serialized encoding list to the storage
+            bucket.blob(serialized_file).upload_from_string(serialized_encoding)
+
+            # Update the last trained time in the Realtime Database for each id
+            current_time = datetime.now()
+            formatted_time = current_time.strftime('%Y-%m-%d %H:%M:%S')
+            for id in encodings:
+                db.reference(user_type).child(id[0]).update({
+                    'last_trained_time': formatted_time
+                })
+
+        return 'Training Complete'
+
+    else:
+        # Return the train_model template
+        return render_template('train_model.html')
 
 
 @app.route('/video_feed')
@@ -148,7 +194,7 @@ def record_attendance():
             match_index = np.argmin(distance)
 
             if matches[match_index]:
-                pass    # TODO: from youtube video
+                pass  # TODO: from youtube video
 
         # Encode the frame in JPEG format
         ret, jpeg = cv2.imencode('.jpg', frame)
@@ -167,8 +213,9 @@ def generate_encodings(image_list):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         # Calculate the 128-dimensional face encodings for the first face detected
-        encode = face_recognition.face_encodings(image)[0]
-        encode_list.append(encode)
+        encode = face_recognition.face_encodings(image)
+        if encode:
+            encode_list.append(encode[0])
 
     return encode_list
 

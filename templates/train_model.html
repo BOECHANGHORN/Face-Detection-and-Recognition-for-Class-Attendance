@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/train_model.css') }}">
+
+  <h2 style="font-size: 2em; font-weight: bold; color: #333;">Train Model</h2>
+
+  <div class="flash-area">
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        {% for message in messages %}
+          <div class="flash-message">{{ message }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <div class="train-model-button-container">
+    <button id="train-model-button" onclick="startTraining()">Start Training</button>
+  </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="{{ url_for('static', filename='assets/js/train_model.js') }}"></script>
+  <script>
+    function startTraining() {
+      $('.flash-area').html('<div class="flash-message">Model training is starting...</div>');
+
+      $.ajax({
+        url: '/train_model',
+        type: 'POST',
+        success: function(response) {
+          $('.flash-area').html('<div class="flash-message">Training complete</div>');
+        },
+        error: function(error) {
+          console.log(error);
+        }
+      });
+    }
+  </script>
+{% endblock %}
