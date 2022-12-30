@@ -1,6 +1,8 @@
-import os
+import base64
 import pickle
 from datetime import datetime
+
+import bcrypt as bcrypt
 import face_recognition
 import numpy as np
 from flask import Flask, render_template, request, redirect, url_for, Response, flash, session
@@ -32,20 +34,61 @@ def login():
         # Get the form data
         username = request.form['username']
         password = request.form['password']
+        user_type = request.form['user_type']
 
-        # Check the credentials
-        # TODO: ADD DATABASE
-        if username == 'admin' and password == 'adminadmin':
+        # Retrieve the stored hashed password and salt for the given username and user type
+        password_and_salt = get_password_and_salt(username, user_type)
+
+        # Return an error message if the user's data was not found
+        if password_and_salt is None:
+            flash('Incorrect username and password for the user type')
+            return redirect(url_for('login'))
+
+        # Unpack the password and salt from the tuple
+        stored_hashed_password_base64, salt_base64 = password_and_salt
+
+        # Decode the stored hashed password and salt from base64
+        stored_hashed_password = base64.b64decode(stored_hashed_password_base64.encode('utf-8'))
+        salt = base64.b64decode(salt_base64.encode('utf-8'))
+
+        # Hash the provided password with the salt
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+
+        # Check if the hashed password matches the stored hashed password
+        if hashed_password == stored_hashed_password:
             # Set the session userid
             session['userid'] = username
-            # Redirect to the attendance page
-            return redirect(url_for('dashboard'))
+
+            # Set the session user_type
+            session['user_type'] = user_type
+
+            if user_type == 'admin':
+                # Redirect to the dashboard page
+                return redirect(url_for('dashboard'))
+            else:
+                # Redirect to the view attendance report page
+                return redirect(url_for('view_attendance_report'))
         else:
             # Redirect back to the login page
             return redirect(url_for('login'))
     else:
         # Render the login template
         return render_template('login.html')
+
+
+def get_password_and_salt(username, user_type):
+    # Get a reference to the user's data in the Realtime Database
+    ref = db.reference(user_type).child(username)
+
+    # Get the user's data from the Realtime Database
+    data = ref.get()
+
+    # Return None if the user's data was not found
+    if data is None:
+        return None
+
+    # Return the stored hashed password and salt
+    return data['password'], data['salt']
 
 
 @app.route('/dashboard')
@@ -61,7 +104,6 @@ def start_attendance():
 @app.route('/register_new_user', methods=['GET', 'POST'])
 def register_new_user():
     if request.method == 'POST':
-
         # Get the form data from the request
         user_type = request.form['user_type']
         name = request.form['name']
@@ -81,11 +123,20 @@ def register_new_user():
         image.seek(0)
         blob.upload_from_file(image)
 
+        # Generate a salt and hash the password using the salt
+        salt = bcrypt.gensalt()
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+
+        # Encode the hashed password and salt as base64-encoded strings
+        hashed_password_base64 = base64.b64encode(hashed_password).decode('utf-8')
+        salt_base64 = base64.b64encode(salt).decode('utf-8')
+
         # Add the user data to the Realtime Database
         ref = db.reference(user_type)
         ref.child(id).set({
             'name': name,
-            'password': password,
+            'password': hashed_password_base64,
+            'salt': salt_base64,
             'image_url': blob.public_url
         })
 

@@ -8,6 +8,16 @@
   <div class="container mt-5">
     <div class="row">
       <div class="col-md-6 mx-auto">
+          {% with messages = get_flashed_messages() %}
+              {% if messages %}
+                <div class="alert alert-info" role="alert">
+                  {% for message in messages %}
+                    <p class="mb-0">{{ message }}</p>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endwith %}
+
         <div class="card shadow">
           <div class="card-body">
             <h1 class="text-center mb-3">Login</h1>
@@ -19,6 +29,12 @@
               <div class="form-group">
                 <label for="password">Password</label>
                 <input type="password" class="form-control" id="password" name="password">
+              </div>
+              <div class="form-group">
+                <label for="user_type">User Type</label><br>
+                <input type="radio" name="user_type" value="admin" id="admin" checked> Admin<br>
+                <input type="radio" name="user_type" value="lecturer" id="lecturer"> Lecturer<br>
+                <input type="radio" name="user_type" value="student" id="student"> Student<br>
               </div>
               <button type="submit" class="btn btn-primary btn-block">Submit</button>
             </form>
