@@ -1,7 +1,6 @@
 import base64
 import pickle
 from datetime import datetime
-
 import bcrypt as bcrypt
 import face_recognition
 import numpy as np
@@ -206,6 +205,11 @@ def train_model():
     else:
         # Return the train_model template
         return render_template('train_model.html')
+
+
+@app.route('/view_attendance_report')
+def view_attendance_report():
+    return render_template('view_attendance_report.html')
 
 
 @app.route('/video_feed')
