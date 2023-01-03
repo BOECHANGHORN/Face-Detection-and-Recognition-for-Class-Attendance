@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+  <!-- Include Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.0/css/bootstrap.min.css" integrity="sha384-9aIt2nRpC12Uk9gS9baDl411NQApFmC26EwAOH8WgZl5MYYxFfc+NcPb1dKGj7Sk" crossorigin="anonymous">
+  <style>
+    .list-group-item {
+      cursor: pointer;
+    }
+    .list-group-item.active {
+      background-color: dodgerblue;
+      color: white;
+    }
+  </style>
+  <div class="container mt-5">
+    <h1 class="text-center mb-3">Create New Class</h1>
+    {% if students %}
+      <form method="post">
+        <div class="form-group">
+          <label for="class_id">Class ID</label>
+          <input type="text" class="form-control" id="class_id" name="class_id">
+        </div>
+        <div class="form-group">
+          <label for="class_name">Class Name</label>
+          <input type="text" class="form-control" id="class_name" name="class_name">
+        </div>
+        <div class="form-group">
+          <label for="lecturer">Lecturer</label>
+          <input type="text" class="form-control" id="lecturer" name="lecturer">
+        </div>
+        <div class="form-group">
+          <label>Select students to include in class:</label>
+          <ul class="list-group">
+            {% for student in students %}
+              <li class="list-group-item" onclick="toggleSelection(this)">{{ student.name }}</li>
+              <input type="hidden" name="student_ids" value="{{ student.id }}" class="selected-student">
+            {% endfor %}
+          </ul>
+        </div>
+        <button type="submit" class="btn btn-primary">Create Class</button>
+      </form>
+    {% else %}
+      <p>No students available.</p>
+    {% endif %}
+  </div>
+  <script>
+    function toggleSelection(li) {
+      li.classList.toggle('active');
+      const hiddenInput = li.querySelector('.selected-student');
+      hiddenInput.disabled = !hiddenInput.disabled;
+    }
+  </script>
+{% endblock %}

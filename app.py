@@ -209,7 +209,102 @@ def train_model():
 
 @app.route('/view_attendance_report')
 def view_attendance_report():
-    return render_template('view_attendance_report.html')
+    # Set up database reference
+    ref = db.reference('attendance_report')
+
+    user_type = session['user_type']
+    userid = session['userid']
+
+    if user_type == 'admin':
+        # Retrieve list of all classes
+        classes = ref.get()
+    elif user_type == 'lecturer':
+        # Retrieve list of classes taught by this lecturer
+        classes = ref.order_by_child('lecturer_id').equal_to(userid).get()
+    elif user_type == 'student':
+        # Retrieve list of classes attended by this student
+        classes = ref.order_by_child('student_ids').equal_to(userid).get()
+
+    return render_template('view_attendance_report.html', classes=classes)
+
+
+@app.route('/edit_classes')
+def edit_classes():
+    user_type = session.get('user_type')
+    user_id = session.get('user_id')
+
+    classes_ref = db.reference('class')
+    if user_type == 'lecturer':
+        classes_ref = classes_ref.order_by_child('lecturer').equal_to(user_id)
+    else:
+        classes_ref = classes_ref.order_by_key()
+
+    classes = []
+    classes_data = classes_ref.get()
+    if classes_data:
+        for class_id, class_data in classes_data.items():
+            class_data['id'] = class_id
+            classes.append(class_data)
+
+    return render_template('edit_classes.html', classes=classes)
+
+
+@app.route('/create_new_class', methods=['GET', 'POST'])
+def create_new_class():
+    if request.method == 'POST':
+        class_id = request.form['class_id']
+        class_name = request.form['class_name']
+        lecturer = request.form['lecturer']
+        student_ids = request.form.getlist('student_ids')
+
+        class_ref = db.reference(f'class/{class_id}')
+        class_ref.set({
+            'name': class_name,
+            'lecturer': lecturer,
+            'student_ids': student_ids
+        })
+
+        return redirect(url_for('edit_classes'))
+
+    students_ref = db.reference('student')
+    students = []
+    students_data = students_ref.get()
+    if students_data:
+        for student_id, student_data in students_data.items():
+            student_data['id'] = student_id
+            students.append(student_data)
+
+    return render_template('create_new_class.html', students=students)
+
+
+@app.route('/edit_class/<class_id>', methods=['GET', 'POST'])
+def edit_class(class_id):
+    if request.method == 'POST':
+        class_name = request.form['class_name']
+        lecturer = request.form['lecturer']
+        student_ids = request.form.getlist('student_ids')
+
+        class_ref = db.reference(f'class/{class_id}')
+        class_ref.update({
+            'name': class_name,
+            'lecturer': lecturer,
+            'student_ids': student_ids
+        })
+
+        return redirect(url_for('edit_classes'))
+
+    class_ref = db.reference(f'class/{class_id}')
+    class_data = class_ref.get()
+
+    students_ref = db.reference('student')
+    students = []
+    students_data = students_ref.get()
+    if students_data:
+        for student_id, student_data in students_data.items():
+            student_data['id'] = student_id
+            students.append(student_data)
+
+    return render_template('edit_class.html', class_data=class_data, students=students)
 
 
 @app.route('/video_feed')
@@ -272,7 +367,7 @@ def record_attendance():
                 id = list(encodings.keys())[list(encodings.values()).index(encodings[match_index])]
                 # Draw rectangles around the detected faces
                 for (top, right, bottom, left) in face_location:
-                    cv2.rectangle(resized_frame, (left*4, top*4), (right*4, bottom*4), (0, 0, 255), 2)
+                    cv2.rectangle(resized_frame, (left * 4, top * 4), (right * 4, bottom * 4), (0, 0, 255), 2)
 
         # Encode the frame in JPEG format
         ret, jpeg = cv2.imencode('.jpg', resized_frame)

@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+    <title>Edit Class</title>
+{% if class_data %}
+<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+<script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js" integrity="sha384-wfSDF2E50Y2D1uUdj0O3uMBJnjuUD4Ih7YwaYd1iqfktj0Uod8GCExl3Og8ifwB6" crossorigin="anonymous"></script>
+<div class="container mt-5">
+  <form method="post">
+    <div class="form-group">
+      <label for="class_name">Class Name:</label>
+      <input type="text" class="form-control" id="class_name" name="class_name" value="{{ class_data.name }}">
+    </div>
+    <div class="form-group">
+      <label for="lecturer">Lecturer:</label>
+      <input type="text" class="form-control" id="lecturer" name="lecturer" value="{{ class_data.lecturer }}">
+    </div>
+    <div class="form-group mt-3">
+      <p>Select students to include in class:</p>
+      <div class="d-flex flex-column">
+        {% for student in students %}
+          <div class="form-check" style="color: dodgerblue;">
+            {% if student.id in class_data.student_ids %}
+              <input class="form-check-input" type="checkbox" id="{{ student.id }}" name="student_ids" value="{{ student.id }}" checked>
+            {% else %}
+              <input class="form-check-input" type="checkbox" id="{{ student.id }}" name="student_ids" value="{{ student.id }}">
+            {% endif %}
+            <label class="form-check-label" for="{{ student.id }}">{{ student.name }}</label>
+         </div>
+     {% endfor %}
+    </div>
+    </div>
+    <button type="submit" class="btn btn-primary mt-3">Update Class</button>
+
+     </form>
+</div>
+{% else %}
+  <p>Class not found.</p>
+{% endif %}
+
+{% endblock %}

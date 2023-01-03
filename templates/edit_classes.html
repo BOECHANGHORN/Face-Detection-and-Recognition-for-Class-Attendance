@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+  <!-- Include custom CSS -->
+  <link rel="stylesheet" href="/static/css/edit_classes.css">
+
+
+  <title>Edit Classes</title>
+  <div class="container">
+    <div class="row">
+      <div class="col-12">
+        {% if session['user_type'] == 'admin' %}
+          <button class="btn btn-primary" onclick="window.location='/create_new_class';">Create New Class</button>
+        {% endif %}
+      </div>
+    </div>
+    <div class="row mt-3">
+      <div class="col-12">
+        <div id="class-list">
+          {% if classes %}
+            <ul class="list-group">
+              {% for class in classes %}
+                <li class="list-group-item"><a href="/edit_class/{{ class.id }}">{{ class.name }}</a></li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p>No classes currently...</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
