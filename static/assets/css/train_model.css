@@ -8,9 +8,10 @@
   display: inline-block;
   background-color: darkcyan;
   color: white;
-  padding: 14px 20px;
   border-radius: 4px;
   font-size: 16px;
+  padding: 10px;
+  margin: 10px 0;
 }
 
 .train-model-button-container {

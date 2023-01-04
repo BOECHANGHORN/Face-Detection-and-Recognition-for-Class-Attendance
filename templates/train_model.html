@@ -6,13 +6,7 @@
   <h2 style="font-size: 2em; font-weight: bold; color: #333;">Train Model</h2>
 
   <div class="flash-area">
-    {% with messages = get_flashed_messages() %}
-      {% if messages %}
-        {% for message in messages %}
-          <div class="flash-message">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
+
   </div>
 
   <div class="train-model-button-container">
@@ -29,7 +23,15 @@
         url: '/train_model',
         type: 'POST',
         success: function(response) {
-          $('.flash-area').html('<div class="flash-message">Training complete</div>');
+            var messages = response;
+            if (messages.constructor !== Array) {
+                messages = [messages];
+            }
+            messages.push("Training Completed");
+            $('.flash-area').empty();
+            for (var i = 0; i < messages.length; i++) {
+                $('.flash-area').append('<div class="flash-message">' + messages[i] + '</div><br>');
+            }
         },
         error: function(error) {
           console.log(error);

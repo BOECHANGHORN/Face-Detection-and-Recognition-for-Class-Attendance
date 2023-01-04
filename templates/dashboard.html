@@ -40,33 +40,28 @@
           <div class="col-md-6">
             <div class="card shadow">
               <div class="card-body">
-                <h5 class="card-title">Upcoming Classes</h5>
-                <table class="table">
-                  <thead>
-                    <tr>
-                      <th scope="col">#</th>
-                      <th scope="col">Class</th>
-                      <th scope="col">Date</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <th scope="row">1</th>
-                      <td>Intro to Data Science</td>
-                      <td>May 25, 2021</td>
-                    </tr>
-                    <tr>
-                      <th scope="row">2</th>
-                      <td>Intro to Machine Learning</td>
-                      <td>May 27, 2021</td>
-                    </tr>
-                    <tr>
-                      <th scope="row">3</th>
-                      <td>Advanced Machine Learning</td>
-                      <td>May 29, 2021</td>
-                    </tr>
-                  </tbody>
-                </table>
+                <h5 class="card-title">Classes Registered</h5>
+                    <table class="table">
+                      <thead>
+                        <tr>
+                          <th scope="col">#</th>
+                          <th scope="col">ID</th>
+                          <th scope="col">Class</th>
+                          <th scope="col">Lecturer</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for i, (c_id, c) in classes.items()|enumerate_custom %}
+                          <tr>
+                            <th scope="row">{{ i + 1 }}</th>
+                            <td>{{ c_id }}</td>
+                            <td>{{ c.name }}</td>
+                            <td>{{ c.lecturer }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+
               </div>
             </div>
           </div>

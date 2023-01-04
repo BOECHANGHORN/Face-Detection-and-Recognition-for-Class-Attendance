@@ -92,7 +92,11 @@ def get_password_and_salt(username, user_type):
 
 @app.route('/dashboard')
 def dashboard():
-    return render_template('dashboard.html')
+    ref = db.reference('class')
+    # Get the data from the realtime database
+    classes = ref.get()
+
+    return render_template('dashboard.html', classes=classes)
 
 
 @app.route('/start_attendance')
@@ -157,6 +161,8 @@ def train_model():
         # Get a reference to the bucket
         bucket = storage.bucket()
 
+        message = []
+
         # Loop through the lecturer and student folders
         for user_type in ['lecturer', 'student']:
             encodings = []
@@ -179,11 +185,14 @@ def train_model():
 
                 # Pass the image array to the generate_encodings function
                 encoding = generate_encodings([image])
+                face_detected = True
+
                 if not encoding:
-                    flash(f"No face detected for {user_type} : {id}", "danger")
+                    face_detected = False
+                    message.append(f"No face detected for {user_type} : {id}")
 
                 # Add the id and encoding to the encodings list
-                encodings.append([id, encoding])
+                encodings.append([id, encoding, face_detected])
 
             # Serialize the encoding list and name it with the user_type
             serialized_encoding = pickle.dumps(encodings)
@@ -197,10 +206,11 @@ def train_model():
             formatted_time = current_time.strftime('%Y-%m-%d %H:%M:%S')
             for id in encodings:
                 db.reference(user_type).child(id[0]).update({
-                    'last_trained_time': formatted_time
+                    'last_trained_time': formatted_time,
+                    'face_detected': id[2]
                 })
 
-        return 'Training Complete'
+        return message
 
     else:
         # Return the train_model template
@@ -377,6 +387,11 @@ def record_attendance():
                b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
 
     cap.release()
+
+
+@app.template_filter()
+def enumerate_custom(seq):
+    return enumerate(seq)
 
 
 def generate_encodings(image_list):
