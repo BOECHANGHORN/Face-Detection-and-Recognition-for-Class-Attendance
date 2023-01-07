@@ -1,3 +1,4 @@
+import asyncio
 import base64
 import pickle
 from datetime import datetime
@@ -99,9 +100,202 @@ def dashboard():
     return render_template('dashboard.html', classes=classes)
 
 
-@app.route('/start_attendance')
+@app.route('/start_attendance', methods=['GET', 'POST'])
 def start_attendance():
-    return render_template('start_attendance.html')
+    if request.method == 'GET':
+        # Get all data from the "class" node in the realtime database
+        classes_ref = db.reference('class')
+        classes_data = classes_ref.get()
+
+        # Extract the names and IDs of the classes from the data
+        class_names_and_ids = [(data['name'], key) for key, data in classes_data.items()]
+
+        return render_template('start_attendance.html', class_names_and_ids=class_names_and_ids)
+    else:
+        # User has submitted the form
+        selected_class_id = request.form['class_selection']
+
+        return redirect(url_for('attendance_in_progress', selected_class_id=selected_class_id))
+
+
+@app.route('/attendance_in_progress')
+def attendance_in_progress():
+    selected_class_id = request.args.get('selected_class_id')
+
+    classes_ref = db.reference('class')
+    classes_data = classes_ref.get()
+
+    # Get class name
+    class_name = classes_data[selected_class_id]['name']
+
+    # Download the student pickle file from Firebase Storage
+    student_pkl_ref = storage.bucket().blob('pickle/student.pkl')
+    student_pkl_bytes = student_pkl_ref.download_as_bytes()
+    student_pkl = pickle.loads(student_pkl_bytes)
+
+    # Download the lecturer pickle file from Firebase Storage
+    lecturer_pkl_ref = storage.bucket().blob('pickle/lecturer.pkl')
+    lecturer_pkl_bytes = lecturer_pkl_ref.download_as_bytes()
+    lecturer_pkl = pickle.loads(lecturer_pkl_bytes)
+
+    # Get the student and lecturer IDs from the realtime database
+    student_ids = db.reference(f'class/{selected_class_id}/student_ids').get()
+    lecturer_id = db.reference(f'class/{selected_class_id}/lecturer_id').get()
+
+    if student_pkl and student_ids:
+        # Filter the student pickle file based on the student IDs
+        student_pkl = [student for student in student_pkl if student[0] in student_ids]
+
+        # Filter the lecturer pickle file based on the lecturer ID
+        lecturer_pkl = [lecturer for lecturer in lecturer_pkl if lecturer[0] == lecturer_id]
+
+    # Create a video capture object
+    cap = cv2.VideoCapture(0)
+
+    # Start the face detection and recognition loop
+    asyncio.create_task(detect_and_recognize(cap, student_ids, lecturer_id, selected_class_id))
+
+    return render_template('attendance_in_progress.html', selected_class_id=selected_class_id, class_name=class_name)
+
+
+@app.route('/video_feed')
+def video_feed():
+    # Create a video capture object
+    cap = cv2.VideoCapture(0)
+
+    # Continuously capture and display frames from the video feed
+    def generate_frames():
+        while True:
+            ret, frame = cap.read()
+            if ret:
+                frame = cv2.imencode('.jpg', frame)[1].tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+            else:
+                break
+
+    # Release the video capture object
+    cap.release()
+
+    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+async def detect_and_recognize(cap, student_ids, lecturer_id, selected_class_id):
+    while True:
+        # Capture a frame from the video feed
+        ret, frame = cap.read()
+
+        # If frame is successfully captured
+        if ret:
+            # Detect and recognize faces in the frame
+            face_locations = face_recognition.face_locations(frame)
+            face_encodings = face_recognition.face_encodings(frame, face_locations)
+            names = []
+            for face_encoding in face_encodings:
+                name = "Unknown"
+                # Check if face encoding matches a student
+                for student_id, student_encoding in student_ids.items():
+                    if face_recognition.compare_faces([student_encoding], face_encoding):
+                        name = student_id
+                        break
+                # Check if face encoding matches the lecturer
+                if name == "Unknown":
+                    if face_recognition.compare_faces([lecturer_id], face_encoding):
+                        name = lecturer_id
+                names.append(name)
+
+            # TODO: START FROM HERE and edit
+            # Update the attendance data in the real-time database
+            attendance_ref = db.reference(f'class/{selected_class_id}/attendance')
+            attendance_data = attendance_ref.get() or {}
+            for name in names:
+                if name in attendance_data:
+                    attendance_data[name]['count'] += 1
+                else:
+                    attendance_data[name] = {'count': 1, 'timestamp': firebase_admin.db.server_time()}
+            attendance_ref.set(attendance_data)
+
+        # Check if the end attendance button has been clicked
+        end_attendance = db.reference(f'class/{selected_class_id}/end_attendance').get()
+        if end_attendance:
+            break
+
+    # Save the attendance data to a pickle file in Firebase Storage
+    attendance_bytes = pickle.dumps(attendance_data)
+    attendance_pkl_ref = storage.bucket().blob(f'pickle/attendance_{selected_class_id}.pkl')
+    attendance_pkl_ref.upload_from_string(attendance_bytes)
+
+
+
+
+# @websocket.route('/video_feed')
+# def video_feed():
+#     # Set up the video capture
+#     video_capture = cv2.VideoCapture(0)
+#
+#     # Continuously yield the video feed and face locations and IDs to the client
+#     while True:
+#         # Get the next frame and face locations and IDs from the attendance generator
+#         frame, face_locations_and_ids = next(attendance_generator)
+#
+#         # Draw a rectangle around each face and display the face ID
+#         for (top, right, bottom, left), face_id in face_locations_and_ids:
+#             cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
+#             cv2.putText(frame, face_id, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+#
+#         # Encode the frame as JPEG
+#         frame = cv2.imencode('.jpg', frame)[1]
+#
+#         # Convert the frame to a bytes object
+#         frame = frame.tobytes()
+#
+#         # Yield the frame to the client
+#         yield (b'--frame\r\n'
+#                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+#
+#
+# def start_class_attendance(frame):
+#     # Perform face detection and recognition on the frame
+#     face_locations = face_recognition.face_locations(frame)
+#     face_encodings = face_recognition.face_encodings(frame, face_locations)
+#     face_ids = []
+#
+#     # Loop through the face encodings and compare them to the known encodings
+#     for face_encoding in face_encodings:
+#         # Check if the face is a student
+#         for student_id, student_encoding in student_encodings.items():
+#             if face_recognition.compare_faces([student_encoding], face_encoding, tolerance=0.5)[0]:
+#                 face_ids.append(student_id)
+#                 break
+#
+#         # If the face is not a student, check if it is a lecturer
+#         else:
+#             for lecturer_id, lecturer_encoding in lecturer_encodings.items():
+#                 if face_recognition.compare_faces([lecturer_encoding], face_encoding, tolerance=0.5)[0]:
+#                     face_ids.append(lecturer_id)
+#                     break
+#
+#                     # If the face is neither a student nor a lecturer, save it as an unknown person
+#                 else:
+#                     # Increment the unknown counter
+#                     unknown_counter += 1
+#
+#                     # Save the image of the unknown face to Firebase Storage
+#                     unknown_image_name = f'unknown{unknown_counter}.jpg'
+#                     storage.child(f'images/{class_id}/{unknown_image_name}').put(face_encoding)
+#
+#                     # Save the image URL and ID to the database
+#                     unknown_image_url = storage.child(f'images/{class_id}/{unknown_image_name}').get_url(None)
+#                     unknown_id = f'unknown{unknown_counter}'
+#                     database.child(f'classes/{class_id}/attendance/{unknown_id}').update({
+#                         'id': unknown_id,
+#                         'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+#                         'image_url': unknown_image_url
+#                     })
+#
+#                     face_ids.append(unknown_id)
+#
+#         return face_locations, face_ids
 
 
 @app.route('/register_new_user', methods=['GET', 'POST'])
@@ -315,78 +509,6 @@ def edit_class(class_id):
             students.append(student_data)
 
     return render_template('edit_class.html', class_data=class_data, students=students)
-
-
-@app.route('/video_feed')
-def video_feed():
-    # Return the video stream response generated by the record_attendance function
-    return Response(record_attendance(),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-def record_attendance():
-    # Open the webcam
-    cap = cv2.VideoCapture(0)
-
-    # Set to 1280x720
-    cap.set(3, 1280)
-    cap.set(4, 720)
-
-    # Get a reference to the bucket
-    bucket = storage.bucket()
-
-    # Initialize an empty dictionary
-    encodings = {}
-
-    # Loop through the lecturer and student folders
-    for user_type in ['lecturer', 'student']:
-        # Get the serialized file from the storage
-        serialized_file = bucket.get_blob(f'pickle/{user_type}.pkl')
-
-        # Deserialize the file and store the data in the dictionary
-        data = pickle.loads(serialized_file.download_as_string())
-        for item in data:
-            id = item[0]
-            encoding = item[1]
-            encodings[id] = encoding
-
-    # Keep capturing frames until the program is interrupted
-    while True:
-        # Capture a frame from the webcam
-        success, frame = cap.read()
-
-        # Resize frame to 25%
-        resized_frame = cv2.resize(frame, (0, 0), None, 0.25, 0.25)
-
-        # Convert color space from BGR to RGB
-        resized_frame = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
-
-        face_location = face_recognition.face_locations(resized_frame)
-        encoded_frame = face_recognition.face_encodings(resized_frame, face_location)
-
-        # Comparison loop
-        for face_encode, face_location in zip(encoded_frame, face_location):
-            # Pass the values in the encodings dictionary to compare_faces and face_distance
-            matches = face_recognition.compare_faces(list(encodings.values()), face_encode)
-            distance = face_recognition.face_distance(list(encodings.values()), face_encode)
-
-            # Check if there are any matches
-            if any(matches):
-                match_index = np.argmin(distance)
-                # Get the id of the matching encoding
-                id = list(encodings.keys())[list(encodings.values()).index(encodings[match_index])]
-                # Draw rectangles around the detected faces
-                for (top, right, bottom, left) in face_location:
-                    cv2.rectangle(resized_frame, (left * 4, top * 4), (right * 4, bottom * 4), (0, 0, 255), 2)
-
-        # Encode the frame in JPEG format
-        ret, jpeg = cv2.imencode('.jpg', resized_frame)
-
-        # Return the frame as a response
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + jpeg.tobytes() + b'\r\n')
-
-    cap.release()
 
 
 @app.template_filter()

@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+    <div class="title">
+      <h1>{{ selected_class_id }} - {{ class_name }}</h1>
+
+      <form method="post" action="/end_attendance">
+        <input type="submit" value="End Attendance">
+      </form>
+    </div>
+
+    <!-- Camera view -->
+    <div class="video-feed">
+      <iframe src="/video_feed" width="640" height="480"></iframe>
+    </div>
+
+    <!-- List of detected IDs -->
+    <ul>
+        {% for name, data in attendance_data.items() %}
+            <li>{{ name }} (ID: {{ name }}) - detected at {{ data.timestamp }}</li>
+        {% endfor %}
+    </ul>
+
+
+{% endblock %}

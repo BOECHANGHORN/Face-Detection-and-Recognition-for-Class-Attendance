@@ -2,14 +2,18 @@
 
 {% block content %}
 
-    <img src="{{ url_for('video_feed') }}">
-    <div class="col-md-6">
-        <div class="card shadow">
-          <div class="card-body">
-            <h5 class="card-title">Face Database Statistics</h5>
-            <p>Total face encodings: 100</p>
-          </div>
-        </div>
-    </div>
+    <title>Start Attendance</title>
+
+    <h1>Start Attendance</h1>
+
+    <form method="post">
+      <select name="class_selection">
+        {% for name, id in class_names_and_ids %}
+        <option value="{{ id }}">{{ id }}: {{name }}</option>
+        {% endfor %}
+      </select>
+      <input type="submit" value="Start Attendance">
+    </form>
+
 
 {% endblock %}
