@@ -186,7 +186,7 @@ def recognize_faces(selected_class_id):
         if face_cur_frame:
             for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
 
-                matches = face_recognition.compare_faces(encode_list_known, encodeFace)
+                matches = face_recognition.compare_faces(encode_list_known, encodeFace, TOLERANCE=0.6)
                 face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
 
                 match_index = np.argmin(face_dis)
