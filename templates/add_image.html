@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+    <div class="container">
+        <div class="row">
+            <div class="col-12 text-center">
+                <img src="/static/Images/Eugene.jpeg" alt="Current Image" class="img-fluid" style="max-height: 500px; border: 5px solid black;">
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-12 text-center">
+                <form method="post" enctype="multipart/form-data">
+                    <div class="form-group">
+                        <input type="file" name="new_image" class="form-control-file" id="new_image">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Re-upload Image</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+{% endblock %}

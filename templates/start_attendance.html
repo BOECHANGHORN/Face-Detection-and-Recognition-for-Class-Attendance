@@ -2,18 +2,23 @@
 
 {% block content %}
 
-    <title>Start Attendance</title>
+<title>Start Attendance</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
 
-    <h1>Start Attendance</h1>
-
-    <form method="post">
-      <select name="class_selection">
-        {% for name, id in class_names_and_ids %}
-        <option value="{{ id }}">{{ id }}: {{name }}</option>
-        {% endfor %}
-      </select>
-      <input type="submit" value="Start Attendance">
-    </form>
+    <div class="container">
+        <h1 class="text-center">Start Attendance</h1>
+        <form method="post">
+            <div class="form-group">
+                <label for="class-select">Select a class:</label>
+                <select class="form-control" name="class_selection" id="class-select">
+                    {% for name, id in class_names_and_ids %}
+                    <option value="{{ id }}">{{ id }}: {{name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Start Attendance</button>
+        </form>
+    </div>
 
 
 {% endblock %}

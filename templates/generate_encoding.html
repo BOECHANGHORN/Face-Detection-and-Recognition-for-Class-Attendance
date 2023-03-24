@@ -1,33 +1,33 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/train_model.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/generate_encoding.css') }}">
 
-  <h2 style="font-size: 2em; font-weight: bold; color: #333;">Train Model</h2>
+  <h2 style="font-size: 2em; font-weight: bold; color: #333;">Generate Encoding</h2>
 
   <div class="flash-area">
 
   </div>
 
   <div class="train-model-button-container">
-    <button id="train-model-button" onclick="startTraining()">Start Training</button>
+    <button id="train-model-button" onclick="startTraining()">Start Encoding</button>
   </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-  <script src="{{ url_for('static', filename='assets/js/train_model.js') }}"></script>
+  <script src="{{ url_for('static', filename='assets/js/generate_encoding.js') }}"></script>
   <script>
     function startTraining() {
-      $('.flash-area').html('<div class="flash-message">Model training is starting...</div>');
+      $('.flash-area').html('<div class="flash-message">Generate Encoding is starting...</div>');
 
       $.ajax({
-        url: '/train_model',
+        url: '/generate_encoding',
         type: 'POST',
         success: function(response) {
             var messages = response;
             if (messages.constructor !== Array) {
                 messages = [messages];
             }
-            messages.push("Training Completed");
+            messages.push("Encode Completed");
             $('.flash-area').empty();
             for (var i = 0; i < messages.length; i++) {
                 $('.flash-area').append('<div class="flash-message">' + messages[i] + '</div><br>');

@@ -1,5 +1,5 @@
-import asyncio
 import base64
+import itertools
 import pickle
 from datetime import datetime
 import bcrypt as bcrypt
@@ -56,8 +56,8 @@ def login():
 
         # Check if the hashed password matches the stored hashed password
         if hashed_password == stored_hashed_password:
-            # Set the session userid
-            session['userid'] = username
+            # Set the session user_id
+            session['user_id'] = username
 
             # Set the session user_type
             session['user_type'] = user_type
@@ -97,6 +97,8 @@ def dashboard():
     # Get the data from the realtime database
     classes = ref.get()
 
+    # TODO: dashboard features
+
     return render_template('dashboard.html', classes=classes)
 
 
@@ -114,13 +116,12 @@ def start_attendance():
     else:
         # User has submitted the form
         selected_class_id = request.form['class_selection']
-
         return redirect(url_for('attendance_in_progress', selected_class_id=selected_class_id))
 
 
-@app.route('/attendance_in_progress')
-def attendance_in_progress():
-    selected_class_id = request.args.get('selected_class_id')
+
+@app.route('/attendance_in_progress/<selected_class_id>')
+def attendance_in_progress(selected_class_id):
 
     classes_ref = db.reference('class')
     classes_data = classes_ref.get()
@@ -128,6 +129,17 @@ def attendance_in_progress():
     # Get class name
     class_name = classes_data[selected_class_id]['name']
 
+    return render_template('attendance_in_progress.html', selected_class_id=selected_class_id, class_name=class_name)
+
+
+# TODO: face recog pipeline
+@app.route('/video_feed/<selected_class_id>')
+def video_feed(selected_class_id):
+    return Response(recognize_faces(selected_class_id),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+def recognize_faces(selected_class_id):
     # Download the student pickle file from Firebase Storage
     student_pkl_ref = storage.bucket().blob('pickle/student.pkl')
     student_pkl_bytes = student_pkl_ref.download_as_bytes()
@@ -140,162 +152,62 @@ def attendance_in_progress():
 
     # Get the student and lecturer IDs from the realtime database
     student_ids = db.reference(f'class/{selected_class_id}/student_ids').get()
-    lecturer_id = db.reference(f'class/{selected_class_id}/lecturer_id').get()
+    lecturer_id = db.reference(f'class/{selected_class_id}/lecturer').get()
 
     if student_pkl and student_ids:
         # Filter the student pickle file based on the student IDs
-        student_pkl = [student for student in student_pkl if student[0] in student_ids]
+        student_pkl = [student for student in student_pkl if student[0] in student_ids and student[2]]
 
         # Filter the lecturer pickle file based on the lecturer ID
-        lecturer_pkl = [lecturer for lecturer in lecturer_pkl if lecturer[0] == lecturer_id]
+        lecturer_pkl = [lecturer for lecturer in lecturer_pkl if lecturer[0] == lecturer_id and lecturer[2]]
 
-    # Create a video capture object
+    student_pkl.extend(lecturer_pkl)
+
+    # Create a list of match IDs from the combined pickle file
+    match_id = [record[0] for record in student_pkl]
+    encode_list_known = list(itertools.chain.from_iterable([record[1] for record in student_pkl]))
+
+    print(encode_list_known)
+
     cap = cv2.VideoCapture(0)
+    cap.set(3, 640)
+    cap.set(4, 480)
 
-    # Start the face detection and recognition loop
-    asyncio.create_task(detect_and_recognize(cap, student_ids, lecturer_id, selected_class_id))
-
-    return render_template('attendance_in_progress.html', selected_class_id=selected_class_id, class_name=class_name)
-
-
-@app.route('/video_feed')
-def video_feed():
-    # Create a video capture object
-    cap = cv2.VideoCapture(0)
-
-    # Continuously capture and display frames from the video feed
-    def generate_frames():
-        while True:
-            ret, frame = cap.read()
-            if ret:
-                frame = cv2.imencode('.jpg', frame)[1].tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-            else:
-                break
-
-    # Release the video capture object
-    cap.release()
-
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
-
-
-async def detect_and_recognize(cap, student_ids, lecturer_id, selected_class_id):
     while True:
-        # Capture a frame from the video feed
-        ret, frame = cap.read()
-
-        # If frame is successfully captured
-        if ret:
-            # Detect and recognize faces in the frame
-            face_locations = face_recognition.face_locations(frame)
-            face_encodings = face_recognition.face_encodings(frame, face_locations)
-            names = []
-            for face_encoding in face_encodings:
-                name = "Unknown"
-                # Check if face encoding matches a student
-                for student_id, student_encoding in student_ids.items():
-                    if face_recognition.compare_faces([student_encoding], face_encoding):
-                        name = student_id
-                        break
-                # Check if face encoding matches the lecturer
-                if name == "Unknown":
-                    if face_recognition.compare_faces([lecturer_id], face_encoding):
-                        name = lecturer_id
-                names.append(name)
-
-            # TODO: START FROM HERE and edit
-            # Update the attendance data in the real-time database
-            attendance_ref = db.reference(f'class/{selected_class_id}/attendance')
-            attendance_data = attendance_ref.get() or {}
-            for name in names:
-                if name in attendance_data:
-                    attendance_data[name]['count'] += 1
-                else:
-                    attendance_data[name] = {'count': 1, 'timestamp': firebase_admin.db.server_time()}
-            attendance_ref.set(attendance_data)
-
-        # Check if the end attendance button has been clicked
-        end_attendance = db.reference(f'class/{selected_class_id}/end_attendance').get()
-        if end_attendance:
+        success, img = cap.read()
+        if not success:
             break
+        img_s = cv2.resize(img, (0, 0), None, 0.25, 0.25)
+        img_s = cv2.cvtColor(img_s, cv2.COLOR_BGR2RGB)
 
-    # Save the attendance data to a pickle file in Firebase Storage
-    attendance_bytes = pickle.dumps(attendance_data)
-    attendance_pkl_ref = storage.bucket().blob(f'pickle/attendance_{selected_class_id}.pkl')
-    attendance_pkl_ref.upload_from_string(attendance_bytes)
+        face_cur_frame = face_recognition.face_locations(img_s)
+        encode_cur_frame = face_recognition.face_encodings(img_s, face_cur_frame)
 
+        if face_cur_frame:
+            for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
 
+                matches = face_recognition.compare_faces(encode_list_known, encodeFace)
+                face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
 
+                match_index = np.argmin(face_dis)
 
-# @websocket.route('/video_feed')
-# def video_feed():
-#     # Set up the video capture
-#     video_capture = cv2.VideoCapture(0)
-#
-#     # Continuously yield the video feed and face locations and IDs to the client
-#     while True:
-#         # Get the next frame and face locations and IDs from the attendance generator
-#         frame, face_locations_and_ids = next(attendance_generator)
-#
-#         # Draw a rectangle around each face and display the face ID
-#         for (top, right, bottom, left), face_id in face_locations_and_ids:
-#             cv2.rectangle(frame, (left, top), (right, bottom), (0, 0, 255), 2)
-#             cv2.putText(frame, face_id, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-#
-#         # Encode the frame as JPEG
-#         frame = cv2.imencode('.jpg', frame)[1]
-#
-#         # Convert the frame to a bytes object
-#         frame = frame.tobytes()
-#
-#         # Yield the frame to the client
-#         yield (b'--frame\r\n'
-#                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-#
-#
-# def start_class_attendance(frame):
-#     # Perform face detection and recognition on the frame
-#     face_locations = face_recognition.face_locations(frame)
-#     face_encodings = face_recognition.face_encodings(frame, face_locations)
-#     face_ids = []
-#
-#     # Loop through the face encodings and compare them to the known encodings
-#     for face_encoding in face_encodings:
-#         # Check if the face is a student
-#         for student_id, student_encoding in student_encodings.items():
-#             if face_recognition.compare_faces([student_encoding], face_encoding, tolerance=0.5)[0]:
-#                 face_ids.append(student_id)
-#                 break
-#
-#         # If the face is not a student, check if it is a lecturer
-#         else:
-#             for lecturer_id, lecturer_encoding in lecturer_encodings.items():
-#                 if face_recognition.compare_faces([lecturer_encoding], face_encoding, tolerance=0.5)[0]:
-#                     face_ids.append(lecturer_id)
-#                     break
-#
-#                     # If the face is neither a student nor a lecturer, save it as an unknown person
-#                 else:
-#                     # Increment the unknown counter
-#                     unknown_counter += 1
-#
-#                     # Save the image of the unknown face to Firebase Storage
-#                     unknown_image_name = f'unknown{unknown_counter}.jpg'
-#                     storage.child(f'images/{class_id}/{unknown_image_name}').put(face_encoding)
-#
-#                     # Save the image URL and ID to the database
-#                     unknown_image_url = storage.child(f'images/{class_id}/{unknown_image_name}').get_url(None)
-#                     unknown_id = f'unknown{unknown_counter}'
-#                     database.child(f'classes/{class_id}/attendance/{unknown_id}').update({
-#                         'id': unknown_id,
-#                         'time': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-#                         'image_url': unknown_image_url
-#                     })
-#
-#                     face_ids.append(unknown_id)
-#
-#         return face_locations, face_ids
+                if matches[match_index]:
+                    name = match_id[match_index]
+                else:
+                    name = "Unknown"
+
+                # Draw a rectangle around the face and display the name
+                top, right, bottom, left = faceLoc
+                top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
+                cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
+                cv2.putText(img, str(name), (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+
+                # mark attendance
+
+        ret, buffer = cv2.imencode('.jpg', img)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
 @app.route('/register_new_user', methods=['GET', 'POST'])
@@ -349,8 +261,8 @@ def register_success():
     return render_template('register_success.html')
 
 
-@app.route('/train_model', methods=['GET', 'POST'])
-def train_model():
+@app.route('/generate_encoding', methods=['GET', 'POST'])
+def generate_encoding():
     if request.method == 'POST':
         # Get a reference to the bucket
         bucket = storage.bucket()
@@ -378,7 +290,7 @@ def train_model():
                 image = cv2.imdecode(image_array, cv2.COLOR_BGRA2BGR)
 
                 # Pass the image array to the generate_encodings function
-                encoding = generate_encodings([image])
+                encoding = get_encodings([image])
                 face_detected = True
 
                 if not encoding:
@@ -395,41 +307,46 @@ def train_model():
             # Upload the serialized encoding list to the storage
             bucket.blob(serialized_file).upload_from_string(serialized_encoding)
 
-            # Update the last trained time in the Realtime Database for each id
+            # Update the last encode time in the Realtime Database for each id
             current_time = datetime.now()
             formatted_time = current_time.strftime('%Y-%m-%d %H:%M:%S')
             for id in encodings:
                 db.reference(user_type).child(id[0]).update({
-                    'last_trained_time': formatted_time,
+                    'last_encode_time': formatted_time,
                     'face_detected': id[2]
                 })
 
         return message
 
     else:
-        # Return the train_model template
-        return render_template('train_model.html')
+        # Return the generate encoding template
+        return render_template('generate_encoding.html')
 
 
-@app.route('/view_attendance_report')
+@app.route('/view_attendance_report', methods=['GET', 'POST'])
 def view_attendance_report():
+    # TODO: view attendance report feature
+
     # Set up database reference
-    ref = db.reference('attendance_report')
+    # ref = db.reference('attendance_report')
+    #
+    # user_type = session['user_type']
+    # user_id = session['user_id']
 
-    user_type = session['user_type']
-    userid = session['userid']
+    # if user_type == 'admin':
+    #     # Retrieve list of all classes
+    #     classes = ref.get()
+    # elif user_type == 'lecturer':
+    #     # Retrieve list of classes taught by this lecturer
+    #     classes = ref.order_by_child('lecturer_id').equal_to(user_id).get()
+    # elif user_type == 'student':
+    #     # Retrieve list of classes attended by this student
+    #     classes = ref.order_by_child('student_ids').equal_to(user_id).get()
 
-    if user_type == 'admin':
-        # Retrieve list of all classes
-        classes = ref.get()
-    elif user_type == 'lecturer':
-        # Retrieve list of classes taught by this lecturer
-        classes = ref.order_by_child('lecturer_id').equal_to(userid).get()
-    elif user_type == 'student':
-        # Retrieve list of classes attended by this student
-        classes = ref.order_by_child('student_ids').equal_to(userid).get()
-
-    return render_template('view_attendance_report.html', classes=classes)
+    if request.method == 'POST':
+        return redirect(url_for('attendance_report'))
+    else:
+        return render_template('view_attendance_report.html')  # , classes=classes)
 
 
 @app.route('/edit_classes')
@@ -511,12 +428,28 @@ def edit_class(class_id):
     return render_template('edit_class.html', class_data=class_data, students=students)
 
 
+# TODO: finish those features
+@app.route('/edit_details')
+def edit_details():
+    return render_template('edit_details.html')
+
+
+@app.route('/add_image')
+def add_image():
+    return render_template('add_image.html')
+
+
+@app.route('/attendance_report')
+def attendance_report():
+    return render_template('attendance_report.html')
+
+
 @app.template_filter()
 def enumerate_custom(seq):
     return enumerate(seq)
 
 
-def generate_encodings(image_list):
+def get_encodings(image_list):
     encode_list = []
     for image in image_list:
         # Convert color space from BGR to RGB
@@ -531,4 +464,4 @@ def generate_encodings(image_list):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, threaded=True)
+    app.run(debug=True)

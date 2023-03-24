@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block content %}
+
+    <title>Attendance Report</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+
+    <div class="container">
+      <h1 class="text-center mt-5">Attendance Report</h1>
+      <button class="btn btn-primary float-right mb-3" onclick="window.location.href='edit-attendance.html'">Edit Attendance</button>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Detected Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td>John Doe</td>
+            <td>17:46:18</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td>Jane Smith</td>
+            <td>17:46:20</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td>Bob Johnson</td>
+            <td>17:46:51</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+{% endblock %}

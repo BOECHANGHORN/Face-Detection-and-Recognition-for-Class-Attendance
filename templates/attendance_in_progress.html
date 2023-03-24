@@ -2,25 +2,79 @@
 
 {% block content %}
 
-    <div class="title">
-      <h1>{{ selected_class_id }} - {{ class_name }}</h1>
+{#    <div class="title">#}
+{#      <h1>{{ selected_class_id }} - {{ class_name }}</h1>#}
+{##}
+{#      <form method="post" action="/end_attendance">#}
+{#        <input type="submit" value="End Attendance">#}
+{#      </form>#}
+{#    </div>#}
+{##}
+{#    <!-- Camera view -->#}
+{#    <div class="video-feed">#}
+{#      <iframe src="/video_feed" width="640" height="480"></iframe>#}
+{#    </div>#}
+{##}
+{#    <!-- List of detected IDs -->#}
+{#    <ul>#}
+{#        {% for name, data in attendance_data.items() %}#}
+{#            <li>{{ name }} (ID: {{ name }}) - detected at {{ data.timestamp }}</li>#}
+{#        {% endfor %}#}
+{#    </ul>#}
+{##}
+{#  SAMPLE CODE  #}
 
-      <form method="post" action="/end_attendance">
-        <input type="submit" value="End Attendance">
-      </form>
+<title>Attendance in Progress</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center py-3">
+            <h2 class="text-primary">Class ID: {{ selected_class_id }}</h2>
+            <h2 class="text-primary">Class Name: {{ class_name }}</h2>
+            <form>
+                <button type="submit" class="btn btn-danger">End Class</button>
+            </form>
+        </div>
+        <div class="text-center">
+            <div>
+                <img src="{{ url_for('video_feed', selected_class_id=selected_class_id) }}" class="img-fluid" width="720" height="480">
+            </div>
+        </div>
+
+        <div>
+            <table class="table">
+                <thead>
+                 <tr>
+                     <th>ID</th>
+                    <th>Name</th>
+                    <th>Time Detected</th>
+                    <th>User Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr class="highlight-row">
+                    <td>0001</td>
+                    <td>Eugene</td>
+                    <td>18:03:20</td>
+                    <td>Lecturer</td>
+                </tr>
+
+                <tr>
+                    <td>0003</td>
+                    <td>Jason</td>
+                    <td>18:03:50</td>
+                    <td>Student</td>
+                </tr>
+                <tr>
+                    <td>0002</td>
+                    <td>Boe</td>
+                    <td>18:05:10</td>
+                    <td>Student</td>
+                </tr>
+            </tbody>
+        </table>
     </div>
-
-    <!-- Camera view -->
-    <div class="video-feed">
-      <iframe src="/video_feed" width="640" height="480"></iframe>
-    </div>
-
-    <!-- List of detected IDs -->
-    <ul>
-        {% for name, data in attendance_data.items() %}
-            <li>{{ name }} (ID: {{ name }}) - detected at {{ data.timestamp }}</li>
-        {% endfor %}
-    </ul>
+</div>
 
 
 {% endblock %}

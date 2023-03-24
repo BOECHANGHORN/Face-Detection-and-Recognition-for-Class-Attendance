@@ -1,43 +1,47 @@
 {% extends 'base.html' %}
 
 {% block content %}
+    <style>
+        @keyframes move {
+            from {width: 0%;}
+            to {width: 100%;}
+        }
+    </style>
 
   <div class="container-fluid mt-3">
     <div class="row">
       <div class="col-md-10">
         <h2>Dashboard</h2>
         <div class="row mt-3">
-          <div class="col-md-6">
+          <div class="col-md-12 mb-3">
             <div class="card shadow">
               <div class="card-body">
-                <h5 class="card-title">Attendance Performance</h5>
-                <canvas id="attendanceChart"></canvas>
+                <h5 class="card-title text-center">Attendance Performance</h5>
+                <img src="/static/Images/fake_chart.png" alt="your image" class="img-fluid mx-auto d-block" width="100%">
               </div>
             </div>
           </div>
-            <div class="col-md-6">
+          <div class="col-md-6 mb-3">
             <div class="card shadow">
               <div class="card-body">
                 <h5 class="card-title">Detection Statistics</h5>
-                <p>Total pages detected: 100</p>
+                <p>Total faces detected: 100</p>
                 <p>Total faces unrecognized: 5</p>
               </div>
             </div>
           </div>
-        </div>
-        <div class="row mt-3">
-          <div class="col-md-6">
+          <div class="col-md-6 mb-3">
             <div class="card shadow">
               <div class="card-body">
-                <h5 class="card-title">Model Training</h5>
+                <h5 class="card-title">Generate Encodings</h5>
                 <div class="progress">
-                  <div class="progress-bar" role="progressbar" style="width: 25%" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+                  <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 25%; animation: move 2s linear infinite;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
-                <p>Training in progress...</p>
+                <p>Encode in progress...</p>
               </div>
             </div>
           </div>
-          <div class="col-md-6">
+          <div class="col-md-12">
             <div class="card shadow">
               <div class="card-body">
                 <h5 class="card-title">Classes Registered</h5>
@@ -69,6 +73,7 @@
       </div>
     </div>
   </div>
+
 {% endblock %}
 
 
