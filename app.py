@@ -1,6 +1,7 @@
 import base64
 import itertools
 import pickle
+import secrets
 from datetime import datetime
 import bcrypt as bcrypt
 import face_recognition
@@ -9,9 +10,10 @@ from flask import Flask, render_template, request, redirect, url_for, Response, 
 import cv2
 import firebase_admin
 from firebase_admin import credentials, storage, db
+import threading
 
 app = Flask(__name__)
-app.secret_key = 'fyp1facerecognitionattendancesystem'
+app.secret_key = secrets.token_hex(16)
 
 # Load the Firebase credentials
 cred = credentials.Certificate("serviceAccountKey.json")
@@ -119,95 +121,237 @@ def start_attendance():
         return redirect(url_for('attendance_in_progress', selected_class_id=selected_class_id))
 
 
-
 @app.route('/attendance_in_progress/<selected_class_id>')
 def attendance_in_progress(selected_class_id):
-
     classes_ref = db.reference('class')
     classes_data = classes_ref.get()
 
     # Get class name
     class_name = classes_data[selected_class_id]['name']
 
-    return render_template('attendance_in_progress.html', selected_class_id=selected_class_id, class_name=class_name)
+    # Create attendance report instance for the class
+    today = datetime.now().strftime("%d%m%y")
+    current_time = datetime.now().strftime("%H%M")
+
+    db_ref = 'attendance_report/{}_{}_{}'.format(selected_class_id, today, current_time)
+
+    attendance_report_ref = db.reference(db_ref)
+
+    # Add current class reference to session
+    session['attendance_report_ref'] = db_ref
+
+    attendance_report_ref.set({
+        'class_id': selected_class_id,
+        'date': datetime.now().strftime("%Y-%m-%d"),
+        'start_time': datetime.now().strftime("%H:%M:%S"),
+        'end_time': '',
+        'total_face_detected': 0,
+
+    })
+
+    return render_template('attendance_in_progress.html', selected_class_id=selected_class_id, class_name=class_name,
+                           db_ref=db_ref)
 
 
-# TODO: face recog pipeline
 @app.route('/video_feed/<selected_class_id>')
 def video_feed(selected_class_id):
-    return Response(recognize_faces(selected_class_id),
-                    mimetype='multipart/x-mixed-replace; boundary=frame')
+    attendance_report_ref = session.get('attendance_report_ref')
+    attendance_report_ref = db.reference(attendance_report_ref)
+
+    # create an instance of the FaceRecognitionThread class
+    face_thread = FaceRecognitionThread(selected_class_id, attendance_report_ref)
+
+    # start the thread
+    face_thread.start()
+
+    # return a response object that uses the generator function
+    return Response(face_thread.run(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
+# Old Approach Not Threaded
+# def recognize_faces(selected_class_id, attendance_report_ref):
+#     # Download the student pickle file from Firebase Storage
+#     student_pkl_ref = storage.bucket().blob('pickle/student.pkl')
+#     student_pkl_bytes = student_pkl_ref.download_as_bytes()
+#     student_pkl = pickle.loads(student_pkl_bytes)
+#
+#     # Download the lecturer pickle file from Firebase Storage
+#     lecturer_pkl_ref = storage.bucket().blob('pickle/lecturer.pkl')
+#     lecturer_pkl_bytes = lecturer_pkl_ref.download_as_bytes()
+#     lecturer_pkl = pickle.loads(lecturer_pkl_bytes)
+#
+#     # Get the student and lecturer IDs from the realtime database
+#     student_ids = db.reference(f'class/{selected_class_id}/student_ids').get()
+#     lecturer_id = db.reference(f'class/{selected_class_id}/lecturer').get()
+#
+#     if student_pkl and student_ids:
+#         # Filter the student pickle file based on the student IDs
+#         student_pkl = [student for student in student_pkl if student[0] in student_ids and student[2]]
+#
+#         # Filter the lecturer pickle file based on the lecturer ID
+#         lecturer_pkl = [lecturer for lecturer in lecturer_pkl if lecturer[0] == lecturer_id and lecturer[2]]
+#
+#     student_pkl.extend(lecturer_pkl)
+#
+#     # Create a list of match IDs from the combined pickle file
+#     match_id = [record[0] for record in student_pkl]
+#     encode_list_known = list(itertools.chain.from_iterable([record[1] for record in student_pkl]))
+#
+#     cap = cv2.VideoCapture(0)
+#     cap.set(3, 640)
+#     cap.set(4, 480)
+#
+#     # Create a list of signed attendance and signed name
+#     signed_id = []  # Used for validating duplicates
+#
+#     while True:
+#         success, img = cap.read()
+#         if not success:
+#             break
+#         img_s = cv2.resize(img, (0, 0), None, 0.25, 0.25)
+#         img_s = cv2.cvtColor(img_s, cv2.COLOR_BGR2RGB)
+#
+#         face_cur_frame = face_recognition.face_locations(img_s)
+#         encode_cur_frame = face_recognition.face_encodings(img_s, face_cur_frame)
+#
+#         if face_cur_frame:
+#             for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
+#
+#                 matches = face_recognition.compare_faces(encode_list_known, encodeFace, 0.6)
+#                 face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
+#
+#                 match_index = np.argmin(face_dis)
+#
+#                 if matches[match_index]:
+#                     id = match_id[match_index]
+#                 else:
+#                     id = "Unknown"
+#
+#                 # Draw a rectangle around the face and display the name
+#                 top, right, bottom, left = faceLoc
+#                 top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
+#                 cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
+#                 cv2.putText(img, str(id), (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+#
+#                 if id != "Unknown":
+#                     signed_id = markAttendance(id, signed_id, attendance_report_ref, lecturer_id)
+#
+#         ret, buffer = cv2.imencode('.jpg', img)
+#         frame = buffer.tobytes()
+#         yield (b'--frame\r\n'
+#                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
-def recognize_faces(selected_class_id):
-    # Download the student pickle file from Firebase Storage
-    student_pkl_ref = storage.bucket().blob('pickle/student.pkl')
-    student_pkl_bytes = student_pkl_ref.download_as_bytes()
-    student_pkl = pickle.loads(student_pkl_bytes)
+class FaceRecognitionThread(threading.Thread):
+    def __init__(self, selected_class_id, attendance_report_ref):
+        threading.Thread.__init__(self)
+        self.selected_class_id = selected_class_id
+        self.attendance_report_ref = attendance_report_ref
 
-    # Download the lecturer pickle file from Firebase Storage
-    lecturer_pkl_ref = storage.bucket().blob('pickle/lecturer.pkl')
-    lecturer_pkl_bytes = lecturer_pkl_ref.download_as_bytes()
-    lecturer_pkl = pickle.loads(lecturer_pkl_bytes)
+    def run(self):
+        # Download the student pickle file from Firebase Storage
+        student_pkl_ref = storage.bucket().blob('pickle/student.pkl')
+        student_pkl_bytes = student_pkl_ref.download_as_bytes()
+        student_pkl = pickle.loads(student_pkl_bytes)
 
-    # Get the student and lecturer IDs from the realtime database
-    student_ids = db.reference(f'class/{selected_class_id}/student_ids').get()
-    lecturer_id = db.reference(f'class/{selected_class_id}/lecturer').get()
+        # Download the lecturer pickle file from Firebase Storage
+        lecturer_pkl_ref = storage.bucket().blob('pickle/lecturer.pkl')
+        lecturer_pkl_bytes = lecturer_pkl_ref.download_as_bytes()
+        lecturer_pkl = pickle.loads(lecturer_pkl_bytes)
 
-    if student_pkl and student_ids:
-        # Filter the student pickle file based on the student IDs
-        student_pkl = [student for student in student_pkl if student[0] in student_ids and student[2]]
+        # Get the student and lecturer IDs from the realtime database
+        student_ids = db.reference(f'class/{self.selected_class_id}/student_ids').get()
+        lecturer_id = db.reference(f'class/{self.selected_class_id}/lecturer').get()
 
-        # Filter the lecturer pickle file based on the lecturer ID
-        lecturer_pkl = [lecturer for lecturer in lecturer_pkl if lecturer[0] == lecturer_id and lecturer[2]]
+        if student_pkl and student_ids:
+            # Filter the student pickle file based on the student IDs
+            student_pkl = [student for student in student_pkl if student[0] in student_ids and student[2]]
 
-    student_pkl.extend(lecturer_pkl)
+            # Filter the lecturer pickle file based on the lecturer ID
+            lecturer_pkl = [lecturer for lecturer in lecturer_pkl if lecturer[0] == lecturer_id and lecturer[2]]
 
-    # Create a list of match IDs from the combined pickle file
-    match_id = [record[0] for record in student_pkl]
-    encode_list_known = list(itertools.chain.from_iterable([record[1] for record in student_pkl]))
+        student_pkl.extend(lecturer_pkl)
 
-    print(encode_list_known)
+        # Create a list of match IDs from the combined pickle file
+        match_id = [record[0] for record in student_pkl]
+        encode_list_known = list(itertools.chain.from_iterable([record[1] for record in student_pkl]))
 
-    cap = cv2.VideoCapture(0)
-    cap.set(3, 640)
-    cap.set(4, 480)
+        cap = cv2.VideoCapture(0)
+        cap.set(3, 640)
+        cap.set(4, 480)
 
-    while True:
-        success, img = cap.read()
-        if not success:
-            break
-        img_s = cv2.resize(img, (0, 0), None, 0.25, 0.25)
-        img_s = cv2.cvtColor(img_s, cv2.COLOR_BGR2RGB)
+        # Create a list of signed attendance and signed name
+        signed_id = []  # Used for validating duplicates
 
-        face_cur_frame = face_recognition.face_locations(img_s)
-        encode_cur_frame = face_recognition.face_encodings(img_s, face_cur_frame)
+        while True:
+            success, img = cap.read()
+            if not success:
+                break
+            img_s = cv2.resize(img, (0, 0), None, 0.25, 0.25)
+            img_s = cv2.cvtColor(img_s, cv2.COLOR_BGR2RGB)
 
-        if face_cur_frame:
-            for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
+            face_cur_frame = face_recognition.face_locations(img_s)
+            encode_cur_frame = face_recognition.face_encodings(img_s, face_cur_frame)
 
-                matches = face_recognition.compare_faces(encode_list_known, encodeFace, TOLERANCE=0.6)
-                face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
+            if face_cur_frame:
+                for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
 
-                match_index = np.argmin(face_dis)
+                    matches = face_recognition.compare_faces(encode_list_known, encodeFace, 0.6)
+                    face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
 
-                if matches[match_index]:
-                    name = match_id[match_index]
-                else:
-                    name = "Unknown"
+                    match_index = np.argmin(face_dis)
 
-                # Draw a rectangle around the face and display the name
-                top, right, bottom, left = faceLoc
-                top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
-                cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
-                cv2.putText(img, str(name), (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+                    if matches[match_index]:
+                        id = match_id[match_index]
+                    else:
+                        id = "Unknown"
 
-                # mark attendance
+                    # Draw a rectangle around the face and display the name
+                    top, right, bottom, left = faceLoc
+                    top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
+                    cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
+                    cv2.putText(img, str(id), (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
 
-        ret, buffer = cv2.imencode('.jpg', img)
-        frame = buffer.tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+                    if id != "Unknown":
+                        signed_id = markAttendance(id, signed_id, self.attendance_report_ref, lecturer_id)
+
+            ret, buffer = cv2.imencode('.jpg', img)
+            frame = buffer.tobytes()
+
+            # Yield the frame to the main thread to send to the web browser
+            yield (b'--frame\r\n'
+                   b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+
+class FlaskThread(threading.Thread):
+    def __init__(self):
+        threading.Thread.__init__(self)
+
+    def run(self):
+        app.run(host='0.0.0.0')
+
+
+def markAttendance(id, signed_id, attendance_report_ref, lecturer_id):
+    if id not in signed_id:
+
+        signed_id.append(id)
+
+        # Update list for database
+        join_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Update attendance in database
+        if id == lecturer_id:
+            print("lecturer_id:", id, "lecturer_join_time:", join_time, "user_type:", "Lecturer")
+            attendance_report_ref.child('attendance_ids').child(id).update({'lecturer_join_time': join_time,
+                                                                            'user_type': 'Lecturer'})
+        else:
+            print("student_id:", id, "student_join_time:", join_time, "user_type:", "Student")
+            attendance_report_ref.child('attendance_ids').child(id).update({'student_join_time': join_time,
+                                                                            'user_type': 'Student'})
+
+        attendance_report_ref.update({'total_face_detected': attendance_report_ref.child(
+            'total_face_detected').transaction(lambda current_value: (current_value or 0) + 1)})
+
+    return signed_id
 
 
 @app.route('/register_new_user', methods=['GET', 'POST'])
@@ -444,6 +588,11 @@ def attendance_report():
     return render_template('attendance_report.html')
 
 
+@app.route('/capture_face')
+def capture_face():
+    return render_template('capture_face.html')
+
+
 @app.template_filter()
 def enumerate_custom(seq):
     return enumerate(seq)
@@ -464,4 +613,4 @@ def get_encodings(image_list):
 
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, threaded=True)

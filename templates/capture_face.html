@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Face Recognition Attendance</title>
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.2/css/bootstrap.min.css" integrity="sha512-XWUzvOZogNUOZ1YQ8mKLXLk+G6a18nDlvFz03ikW8CtzQzQn6xBG02cfcZkW8p3bqJj6UgT6XdjT6MZ9r6UdOQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+    <!-- Custom styles -->
+    <style>
+        body {
+            background-color: #f0faff;
+        }
+    </style>
+
+    <!-- jQuery -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1 class="my-3">Face Recognition Attendance</h1>
+
+        <div class="row">
+            <div class="col-md-6">
+                <img id="video_feed" class="img-fluid" src="{{ url_for('video_feed') }}" alt="Video feed">
+            </div>
+            <div class="col-md-6">
+                <div class="my-3">
+                    <button id="start_capture" class="btn btn-primary me-2">Start Capture</button>
+                    <button id="stop_capture" class="btn btn-danger">Stop Capture</button>
+                </div>
+                <h2 class="mt-4">Students:</h2>
+                <ul id="students_list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.2/js/bootstrap.bundle.min.js" integrity="sha512-9CkOjZUzEiUwD8ikjgO68d+RCebMoytiLJjT34YGLrIqz/Zr+APjKwF8cTo0JDsIATfcRycs7TjSH9Tg1zr3qA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <script>
+        $(document).ready(function () {
+            let studentsCount = 0;
+
+            function updateStudentsList() {
+                studentsCount++;
+                $("#students_list").append(`<li>Student ${studentsCount}</li>`);
+            }
+
+            $("#start_capture").click(function () {
+                $.post("/start_capture", {}, function (data) {
+                    if (data.faces_detected > 0) {
+                        updateStudentsList();
+                    }
+                });
+            });
+
+            $("#stop_capture").click(function () {
+                $.post("/stop_capture", {}, function (data) {
+                    console.log("Capture stopped");
+                });
+            });
+        });
+    </script>
+</body>
+</html>
