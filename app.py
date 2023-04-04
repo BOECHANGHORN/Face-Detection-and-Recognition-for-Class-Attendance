@@ -121,33 +121,48 @@ def start_attendance():
         return redirect(url_for('attendance_in_progress', selected_class_id=selected_class_id))
 
 
-@app.route('/attendance_in_progress/<selected_class_id>')
+@app.route('/attendance_in_progress/<selected_class_id>', methods=['GET', 'POST'])
 def attendance_in_progress(selected_class_id):
-    classes_ref = db.reference('class')
-    classes_data = classes_ref.get()
+    if 'attendance_report_ref' in session:
+        attendance_report_ref = db.reference(session.get('attendance_report_ref'))
 
-    # Get class name
-    class_name = classes_data[selected_class_id]['name']
+    else:
+        classes_ref = db.reference('class')
+        classes_data = classes_ref.get()
 
-    # Create attendance report instance for the class
-    today = datetime.now().strftime("%d%m%y")
-    current_time = datetime.now().strftime("%H%M")
+        # Get class name
+        class_name = classes_data[selected_class_id]['name']
 
-    db_ref = 'attendance_report/{}_{}_{}'.format(selected_class_id, today, current_time)
+        # Create attendance report instance for the class
+        today = datetime.now().strftime("%d%m%y")
+        current_time = datetime.now().strftime("%H%M")
 
-    attendance_report_ref = db.reference(db_ref)
+        db_ref = 'attendance_report/{}_{}_{}'.format(selected_class_id, today, current_time)
 
-    # Add current class reference to session
-    session['attendance_report_ref'] = db_ref
+        attendance_report_ref = db.reference(db_ref)
 
-    attendance_report_ref.set({
-        'class_id': selected_class_id,
-        'date': datetime.now().strftime("%Y-%m-%d"),
-        'start_time': datetime.now().strftime("%H:%M:%S"),
-        'end_time': '',
-        'total_face_detected': 0,
+        # Add current class reference to session
+        session['attendance_report_ref'] = db_ref
 
-    })
+        attendance_report_ref.set({
+            'class_id': selected_class_id,
+            'date': datetime.now().strftime("%Y-%m-%d"),
+            'start_time': datetime.now().strftime("%H:%M:%S"),
+            'end_time': '',
+            'total_face_detected': 0,
+
+        })
+
+    if request.method == 'POST':
+        print("POST triggered")
+        # Update the end time of the attendance report
+        attendance_report_ref.update({'end_time': datetime.now().strftime("%H:%M:%S")})
+
+        # Clear the attendance_report_ref from session
+        session.pop('attendance_report_ref', None)
+
+        # Redirect to the attendance report page for the selected class
+        return redirect(url_for('attendance_report', selected_class_id=selected_class_id))
 
     return render_template('attendance_in_progress.html', selected_class_id=selected_class_id, class_name=class_name,
                            db_ref=db_ref)
@@ -583,8 +598,8 @@ def add_image():
     return render_template('add_image.html')
 
 
-@app.route('/attendance_report')
-def attendance_report():
+@app.route('/attendance_report/<selected_class_id>')
+def attendance_report(selected_class_id):
     return render_template('attendance_report.html')
 
 
