@@ -154,7 +154,6 @@ def attendance_in_progress(selected_class_id):
         })
 
     if request.method == 'POST':
-        print("POST triggered")
         # Update the end time of the attendance report
         attendance_report_ref.update({'end_time': datetime.now().strftime("%H:%M:%S")})
 
@@ -181,6 +180,7 @@ def video_feed(selected_class_id):
 
     # return a response object that uses the generator function
     return Response(face_thread.run(), mimetype='multipart/x-mixed-replace; boundary=frame')
+
 
 # Old Approach Not Threaded
 # def recognize_faces(selected_class_id, attendance_report_ref):
@@ -484,28 +484,47 @@ def generate_encoding():
 
 @app.route('/view_attendance_report', methods=['GET', 'POST'])
 def view_attendance_report():
-    # TODO: view attendance report feature
-
-    # Set up database reference
-    # ref = db.reference('attendance_report')
-    #
-    # user_type = session['user_type']
-    # user_id = session['user_id']
-
-    # if user_type == 'admin':
-    #     # Retrieve list of all classes
-    #     classes = ref.get()
-    # elif user_type == 'lecturer':
-    #     # Retrieve list of classes taught by this lecturer
-    #     classes = ref.order_by_child('lecturer_id').equal_to(user_id).get()
-    # elif user_type == 'student':
-    #     # Retrieve list of classes attended by this student
-    #     classes = ref.order_by_child('student_ids').equal_to(user_id).get()
-
     if request.method == 'POST':
-        return redirect(url_for('attendance_report'))
+        # User has submitted the form
+        selected_class_id = request.form['class_selection']
+
+        return redirect(url_for('attendance_report', selected_class_id=selected_class_id))
+
     else:
-        return render_template('view_attendance_report.html')  # , classes=classes)
+        # Set up database reference
+        class_ref = db.reference('class')
+
+        user_type = session['user_type']
+        user_id = session['user_id']
+
+        # Retrieve all the classes if user is admin
+        if user_type == 'admin':
+            class_code = [code for code in class_ref.get().keys()]
+
+        # Retrieve classes based on lecturer id if user is lecturer
+        elif user_type == 'lecturer':
+            class_code = [code for code in class_ref.get().keys() if
+                          class_ref.child(code).child('lecturer').get() == user_id]
+
+        # Retrieve classes based on student id if user is student
+        elif user_type == 'student':
+            class_code = [code for code in class_ref.get().keys() if
+                          user_id in class_ref.child(code).child('student_ids').get()]
+
+        classes_data = class_ref.get()
+        class_names_and_ids = [(data['name'], key) for key, data in classes_data.items() if key in class_code]
+
+        return render_template('view_attendance_report.html', class_names_and_ids=class_names_and_ids)
+
+
+@app.route('/attendance_report/<selected_class_id>')
+def attendance_report(selected_class_id):
+    attendance_report_ref = db.reference('attendance_report')
+
+    # TODO: continue attendance report
+    print(selected_class_id)
+
+    return render_template('attendance_report.html')
 
 
 @app.route('/edit_classes')
@@ -596,11 +615,6 @@ def edit_details():
 @app.route('/add_image')
 def add_image():
     return render_template('add_image.html')
-
-
-@app.route('/attendance_report/<selected_class_id>')
-def attendance_report(selected_class_id):
-    return render_template('attendance_report.html')
 
 
 @app.route('/capture_face')

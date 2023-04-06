@@ -1,77 +1,6 @@
 {% extends 'base.html' %}
 
 {% block content %}
-{#      <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/view_attendance_report.css') }}">#}
-{##}
-{##}
-{#    {% with messages = get_flashed_messages(with_categories=true) %}#}
-{#        {% if messages %}#}
-{#            {% for category, message in messages %}#}
-{#                <div class="alert alert-{{ category }}">{{ message }}</div>#}
-{#            {% endfor %}#}
-{#        {% endif %}#}
-{#    {% endwith %}#}
-{##}
-{##}
-{#    {% for class_id, class_data in classes.items() %}#}
-{#        <li>{{ class_id }} - {{ class_data.name }}</li>#}
-{#    {% endfor %}#}
-{##}
-{#    {% if user_type == 'admin' %}#}
-{#        <table id="attendance-table">#}
-{#            <thead>#}
-{#                <tr>#}
-{#                    <th>Student ID</th>#}
-{#                    <th>Student Name</th>#}
-{#                    <th>Present</th>#}
-{#                    <th></th>#}
-{#                </tr>#}
-{#            </thead>#}
-{#            <tbody>#}
-{#                {% for student_id, student_data in attendance_data.items() %}#}
-{#                    <tr>#}
-{#                        <td>{{ student_id }}</td>#}
-{#                        <td>{{ student_data.name }}</td>#}
-{#                        <td>#}
-{#                            <input type="checkbox" id="present_{{ student_id }}" {% if student_data.present %}checked{% endif %}>#}
-{#                        </td>#}
-{#                        <td>#}
-{#                            <button class="edit-button" data-student-id="{{ student_id }}">Edit</button>#}
-{#                        </td>#}
-{#                    </tr>#}
-{#                {% endfor %}#}
-{#            </tbody>#}
-{#        </table>#}
-{#        <button id="save-button">Save</button>#}
-{#    {% else %}#}
-{#        <table id="attendance-table">#}
-{#            <thead>#}
-{#                <tr>#}
-{#                    <th>Student ID</th>#}
-{#                    <th>Student Name</th>#}
-{#                    <th>Present</th>#}
-{#                </tr>#}
-{#            </thead>#}
-{#            <tbody>#}
-{#                {% for student_id, student_data in student_data.items() %}#}
-{#                <tr>#}
-{#                    <td>{{ student_id }}</td>#}
-{#                    <td>{{ student_data.name }}</td>#}
-{#                    {% if student_data.present %}#}
-{#                    <td>Yes</td>#}
-{#                    {% else %}#}
-{#                    <td>No</td>#}
-{#                    {% endif %}#}
-{#                </tr>#}
-{#                {% endfor %}#}
-{#            </tbody>#}
-{#        </table>#}
-{#    {% endif %}#}
-{##}
-{##}
-{##}
-{#    <script src="{{ url_for('static', filename='assets/js/view_attendance_report.js') }}"></script>#}
-
 
 {# SAMPLE CODE#}
 <title>View Attendance Report</title>
@@ -83,10 +12,10 @@
         <form method="POST">
             <div class="form-group">
                 <label for="class-select">Select a class:</label>
-                <select class="form-control" id="class-select">
-                    <option>TDS1101</option>
-                    <option>TDS2202</option>
-                    <option>TDS3303</option>
+                <select class="form-control" name="class_selection" id="class-select">
+                    {% for name, id in class_names_and_ids %}
+                    <option value="{{ id }}">{{ id }}: {{name }}</option>
+                    {% endfor %}
                 </select>
             </div>
             <button type="submit" class="btn btn-primary">View Report</button>
