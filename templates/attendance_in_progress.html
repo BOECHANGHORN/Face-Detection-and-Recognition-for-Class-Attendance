@@ -54,7 +54,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase();
 
-        const attendanceRef = ref(db, '{{ db_ref }}/attendance_ids');
+        const attendanceRef = ref(db, '{{ db_ref }}/present_ids');
 
         const lecturerRef = ref(db, 'class/' + '{{selected_class_id}}');
         let lecturer_id;

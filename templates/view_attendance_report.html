@@ -12,8 +12,8 @@
         <form method="POST">
             <div class="form-group">
                 <label for="class-select">Select a class:</label>
-                <select class="form-control" name="class_selection" id="class-select">
-                    {% for name, id in class_names_and_ids %}
+                <select class="form-control" name="report_selection" id="class-select">
+                    {% for name, id in report_names_and_ids %}
                     <option value="{{ id }}">{{ id }}: {{name }}</option>
                     {% endfor %}
                 </select>

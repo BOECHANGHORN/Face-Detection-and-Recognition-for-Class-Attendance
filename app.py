@@ -6,7 +6,7 @@ from datetime import datetime
 import bcrypt as bcrypt
 import face_recognition
 import numpy as np
-from flask import Flask, render_template, request, redirect, url_for, Response, flash, session
+from flask import Flask, render_template, request, redirect, url_for, Response, flash, session, jsonify
 import cv2
 import firebase_admin
 from firebase_admin import credentials, storage, db
@@ -21,6 +21,12 @@ firebase_admin.initialize_app(cred, {
     'databaseURL': "https://fyp1-d54dc-default-rtdb.asia-southeast1.firebasedatabase.app/",
     'storageBucket': "fyp1-d54dc.appspot.com"
 })
+
+
+class UserType:
+    ADMIN = 'admin'
+    LECTURER = 'lecturer'
+    STUDENT = 'student'
 
 
 @app.route('/')
@@ -64,7 +70,7 @@ def login():
             # Set the session user_type
             session['user_type'] = user_type
 
-            if user_type == 'admin':
+            if user_type == UserType.ADMIN:
                 # Redirect to the dashboard page
                 return redirect(url_for('dashboard'))
             else:
@@ -123,8 +129,52 @@ def start_attendance():
 
 @app.route('/attendance_in_progress/<selected_class_id>', methods=['GET', 'POST'])
 def attendance_in_progress(selected_class_id):
-    if 'attendance_report_ref' in session:
-        attendance_report_ref = db.reference(session.get('attendance_report_ref'))
+    if request.method == 'POST':
+        db_ref = session.get('attendance_report_ref')
+
+        # Initialize database references
+        attendance_report_ref = db.reference(db_ref)
+        lecturer_ref = db.reference('lecturer')
+        student_ref = db.reference('student')
+
+        # Clear the attendance_report_ref from session
+        session.pop('attendance_report_ref', None)
+
+        # Get the report id from the reference
+        report_id = db_ref.split('/')[-1]
+
+        # Update the end time of the attendance report
+        attendance_report_ref.update({'end_time': datetime.now().strftime("%H:%M:%S")})
+
+        # Get all the present_ids from the attendance report reference
+        present_ids = attendance_report_ref.child('present_ids').get() or {}
+
+        # Add info for present ids
+        for id, data in present_ids.items():
+            user_type = data['user_type']
+            name = ''
+            if user_type == 'Lecturer':
+                name = lecturer_ref.child(id).child('name').get()
+            elif user_type == 'Student':
+                name = student_ref.child(id).child('name').get()
+            data['name'] = name
+
+        # Absent handling
+        student_ids = db.reference('class').child(selected_class_id).child('student_ids').get()
+
+        absent_ids = {}
+
+        for id in student_ids:
+            if id not in present_ids:
+                name = student_ref.child(id).child('name').get()
+                absent_ids[id] = {'name': name, 'user_type': 'Student'}
+
+        # Update the id lists to the database
+        attendance_report_ref.update({'present_ids': present_ids,
+                                      'absent_ids': absent_ids})
+
+        # Redirect to the attendance report page for the selected class
+        return redirect(url_for('attendance_report', selected_report_id=report_id))
 
     else:
         classes_ref = db.reference('class')
@@ -145,23 +195,13 @@ def attendance_in_progress(selected_class_id):
         session['attendance_report_ref'] = db_ref
 
         attendance_report_ref.set({
+            'name': class_name,
             'class_id': selected_class_id,
             'date': datetime.now().strftime("%Y-%m-%d"),
             'start_time': datetime.now().strftime("%H:%M:%S"),
             'end_time': '',
-            'total_face_detected': 0,
-
+            'total_face_detected': 0
         })
-
-    if request.method == 'POST':
-        # Update the end time of the attendance report
-        attendance_report_ref.update({'end_time': datetime.now().strftime("%H:%M:%S")})
-
-        # Clear the attendance_report_ref from session
-        session.pop('attendance_report_ref', None)
-
-        # Redirect to the attendance report page for the selected class
-        return redirect(url_for('attendance_report', selected_class_id=selected_class_id))
 
     return render_template('attendance_in_progress.html', selected_class_id=selected_class_id, class_name=class_name,
                            db_ref=db_ref)
@@ -356,12 +396,12 @@ def markAttendance(id, signed_id, attendance_report_ref, lecturer_id):
         # Update attendance in database
         if id == lecturer_id:
             print("lecturer_id:", id, "lecturer_join_time:", join_time, "user_type:", "Lecturer")
-            attendance_report_ref.child('attendance_ids').child(id).update({'lecturer_join_time': join_time,
-                                                                            'user_type': 'Lecturer'})
+            attendance_report_ref.child('present_ids').child(id).update({'lecturer_join_time': join_time,
+                                                                         'user_type': 'Lecturer'})
         else:
             print("student_id:", id, "student_join_time:", join_time, "user_type:", "Student")
-            attendance_report_ref.child('attendance_ids').child(id).update({'student_join_time': join_time,
-                                                                            'user_type': 'Student'})
+            attendance_report_ref.child('present_ids').child(id).update({'student_join_time': join_time,
+                                                                         'user_type': 'Student'})
 
         attendance_report_ref.update({'total_face_detected': attendance_report_ref.child(
             'total_face_detected').transaction(lambda current_value: (current_value or 0) + 1)})
@@ -429,7 +469,7 @@ def generate_encoding():
         message = []
 
         # Loop through the lecturer and student folders
-        for user_type in ['lecturer', 'student']:
+        for user_type in [UserType.LECTURER, UserType.STUDENT]:
             encodings = []
 
             # Get a reference from the realtime database
@@ -486,45 +526,68 @@ def generate_encoding():
 def view_attendance_report():
     if request.method == 'POST':
         # User has submitted the form
-        selected_class_id = request.form['class_selection']
+        selected_report_id = request.form['report_selection']
 
-        return redirect(url_for('attendance_report', selected_class_id=selected_class_id))
+        return redirect(url_for('attendance_report', selected_report_id=selected_report_id))
 
     else:
         # Set up database reference
         class_ref = db.reference('class')
+        attendance_report_ref = db.reference('attendance_report')
 
         user_type = session['user_type']
         user_id = session['user_id']
 
         # Retrieve all the classes if user is admin
-        if user_type == 'admin':
-            class_code = [code for code in class_ref.get().keys()]
+        if user_type == UserType.ADMIN:
+            report_id = [code for code in attendance_report_ref.get().keys()]
 
         # Retrieve classes based on lecturer id if user is lecturer
-        elif user_type == 'lecturer':
+        elif user_type == UserType.LECTURER:
             class_code = [code for code in class_ref.get().keys() if
                           class_ref.child(code).child('lecturer').get() == user_id]
 
+            report_id = [code for code in attendance_report_ref.get().keys() if code.split('_')[0] in class_code]
+
         # Retrieve classes based on student id if user is student
-        elif user_type == 'student':
+        elif user_type == UserType.STUDENT:
             class_code = [code for code in class_ref.get().keys() if
                           user_id in class_ref.child(code).child('student_ids').get()]
 
-        classes_data = class_ref.get()
-        class_names_and_ids = [(data['name'], key) for key, data in classes_data.items() if key in class_code]
+            report_id = [code for code in attendance_report_ref.get().keys() if code.split('_')[0] in class_code]
 
-        return render_template('view_attendance_report.html', class_names_and_ids=class_names_and_ids)
+        report_data = attendance_report_ref.get()
+        report_names_and_ids = [(data['name'], key) for key, data in report_data.items() if key in report_id]
+
+        return render_template('view_attendance_report.html', report_names_and_ids=report_names_and_ids)
 
 
-@app.route('/attendance_report/<selected_class_id>')
-def attendance_report(selected_class_id):
+@app.route('/attendance_report/<selected_report_id>')
+def attendance_report(selected_report_id):
     attendance_report_ref = db.reference('attendance_report')
 
-    # TODO: continue attendance report
-    print(selected_class_id)
+    # Get all the data from the attendance report reference
+    selected_report_data = attendance_report_ref.child(selected_report_id).get()
 
-    return render_template('attendance_report.html')
+    # Pass the data to the HTML template
+    present_ids = selected_report_data['present_ids'] if 'present_ids' in selected_report_data else {}
+    class_id = selected_report_data['class_id']
+    date = selected_report_data['date']
+    end_time = selected_report_data['end_time']
+    class_name = selected_report_data['name']
+    start_time = selected_report_data['start_time']
+    total_face_detected = selected_report_data['total_face_detected']
+
+    # TODO: add in absent
+
+    return render_template('attendance_report.html',
+                           present_ids=present_ids,
+                           class_id=class_id,
+                           date=date,
+                           end_time=end_time,
+                           class_name=class_name,
+                           start_time=start_time,
+                           total_face_detected=total_face_detected)
 
 
 @app.route('/edit_classes')
@@ -533,7 +596,7 @@ def edit_classes():
     user_id = session.get('user_id')
 
     classes_ref = db.reference('class')
-    if user_type == 'lecturer':
+    if user_type == UserType.LECTURER:
         classes_ref = classes_ref.order_by_child('lecturer').equal_to(user_id)
     else:
         classes_ref = classes_ref.order_by_key()

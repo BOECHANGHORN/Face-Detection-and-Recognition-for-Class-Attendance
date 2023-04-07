@@ -7,33 +7,81 @@
 
     <div class="container">
       <h1 class="text-center mt-5">Attendance Report</h1>
-      <button class="btn btn-primary float-right mb-3" onclick="window.location.href='edit-attendance.html'">Edit Attendance</button>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Detected Time</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>1</td>
-            <td>John Doe</td>
-            <td>17:46:18</td>
-          </tr>
-          <tr>
-            <td>2</td>
-            <td>Jane Smith</td>
-            <td>17:46:20</td>
-          </tr>
-          <tr>
-            <td>3</td>
-            <td>Bob Johnson</td>
-            <td>17:46:51</td>
-          </tr>
-        </tbody>
-      </table>
+        <hr>
+        </br>
+
+        <div class="row">
+          <div class="col-md-4 mb-4">
+            <div class="card">
+              <div class="card-header bg-info text-white">Class ID</div>
+              <div class="card-body">{{ class_id }}</div>
+            </div>
+          </div>
+            <div class="col-md-4 mb-4">
+            <div class="card">
+              <div class="card-header bg-info text-white">Class Name</div>
+              <div class="card-body">{{ class_name }}</div>
+            </div>
+          </div>
+          <div class="col-md-4 mb-4">
+            <div class="card">
+              <div class="card-header bg-info text-white">Date</div>
+              <div class="card-body">{{ date }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-4 mb-4">
+            <div class="card">
+              <div class="card-header bg-info text-white">Start Time</div>
+              <div class="card-body">{{ start_time }}</div>
+            </div>
+          </div>
+          <div class="col-md-4 mb-4">
+            <div class="card">
+              <div class="card-header bg-info text-white">End Time</div>
+              <div class="card-body">{{ end_time }}</div>
+            </div>
+          </div>
+          <div class="col-md-4 mb-4">
+            <div class="card">
+              <div class="card-header bg-info text-white">Total Face Detected</div>
+              <div class="card-body">{{ total_face_detected }}</div>
+            </div>
+          </div>
+        </div>
+
+          <button class="btn btn-primary float-right mb-3" onclick="window.location.href='edit-attendance.html'">Edit Attendance</button>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Attendance ID</th>
+              <th>Name</th>
+              <th>User Type</th>
+              <th>Join Time</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if present_ids %}
+              {% for id, data in present_ids.items() %}
+              <tr class="{{ 'table-primary' if data['user_type'] == 'Lecturer' else '' }}">
+                <td>{{ id }}</td>
+                <td>{{ data['name'] }}</td>
+                <td>{{ data['user_type'] }}</td>
+                <td>{{ data.get('lecturer_join_time') or data.get('student_join_time') }}</td>
+                <td>{{ data['status'] }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="3">No attendance records found</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
     </div>
 
 {% endblock %}
