@@ -6,7 +6,7 @@ from datetime import datetime
 import bcrypt as bcrypt
 import face_recognition
 import numpy as np
-from flask import Flask, render_template, request, redirect, url_for, Response, flash, session, jsonify
+from flask import Flask, render_template, request, redirect, url_for, Response, flash, session
 import cv2
 import firebase_admin
 from firebase_admin import credentials, storage, db
@@ -571,6 +571,7 @@ def attendance_report(selected_report_id):
 
     # Pass the data to the HTML template
     present_ids = selected_report_data['present_ids'] if 'present_ids' in selected_report_data else {}
+    absent_ids = selected_report_data['absent_ids'] if 'absent_ids' in selected_report_data else {}
     class_id = selected_report_data['class_id']
     date = selected_report_data['date']
     end_time = selected_report_data['end_time']
@@ -578,10 +579,10 @@ def attendance_report(selected_report_id):
     start_time = selected_report_data['start_time']
     total_face_detected = selected_report_data['total_face_detected']
 
-    # TODO: add in absent
-
     return render_template('attendance_report.html',
+                           selected_report_id=selected_report_id,
                            present_ids=present_ids,
+                           absent_ids=absent_ids,
                            class_id=class_id,
                            date=date,
                            end_time=end_time,

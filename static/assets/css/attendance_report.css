@@ -1,0 +1,118 @@
+/* Small screens */
+@media (max-width: 576px) {
+  th:nth-child(1),
+  td:nth-child(1) {
+    width: 80px;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    width: 140px;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    width: 80px;
+  }
+
+  th:nth-child(4),
+  td:nth-child(4) {
+    width: 120px;
+  }
+
+  /* Hide the status column by default on small screens */
+  th:nth-child(5),
+  td:nth-child(5) {
+    width: 80px;
+    display: none;
+  }
+}
+
+/* Medium screens */
+@media (min-width: 577px) and (max-width: 768px) {
+  th:nth-child(1),
+  td:nth-child(1) {
+    width: 100px;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    width: 160px;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    width: 100px;
+  }
+
+  th:nth-child(4),
+  td:nth-child(4) {
+    width: 140px;
+  }
+
+  /* Hide the status column by default on medium screens */
+  th:nth-child(5),
+  td:nth-child(5) {
+    width: 100px;
+    display: none;
+  }
+}
+
+/* Large screens */
+@media (min-width: 769px) {
+  th:nth-child(1),
+  td:nth-child(1) {
+    width: 120px;
+  }
+
+  th:nth-child(2),
+  td:nth-child(2) {
+    width: 200px;
+  }
+
+  th:nth-child(3),
+  td:nth-child(3) {
+    width: 120px;
+  }
+
+  th:nth-child(4),
+  td:nth-child(4) {
+    width: 150px;
+  }
+
+  /* Hide the status column by default on large screens */
+  th:nth-child(5),
+  td:nth-child(5) {
+    width: 120px;
+    display: none;
+  }
+}
+
+h3 {
+  padding-top: 1rem;
+  padding-bottom: 1rem;
+}
+
+th {
+  background-color: #007bff; /* This is a shade of blue */
+  color: white; /* This sets the text color to white for better contrast */
+}
+
+/* Style for the toggle buttons */
+.toggle-btn {
+width: 80px;
+}
+
+.toggle-btn.present {
+background-color: green;
+}
+
+.toggle-btn.absent {
+background-color: red;
+}
+
+.toggle-btn:not(:last-child) {
+margin-right: 5px;
+}
+
+

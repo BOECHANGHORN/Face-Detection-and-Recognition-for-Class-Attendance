@@ -4,9 +4,10 @@
 
     <title>Attendance Report</title>
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='assets/css/attendance_report.css') }}">
 
     <div class="container">
-      <h1 class="text-center mt-5">Attendance Report</h1>
+      <h1 class="text-center mt-5">Attendance Report for {{ selected_report_id }}</h1>
         <hr>
         </br>
 
@@ -52,18 +53,22 @@
           </div>
         </div>
 
-          <button class="btn btn-primary float-right mb-3" onclick="window.location.href='edit-attendance.html'">Edit Attendance</button>
+        <div>
+            <button class="btn btn-primary float-right mb-3" id="edit-attendance-btn">Edit</button>
+        </div>
 
-        <table class="table">
+        <table class="table" id="present-table">
+          <h3>Present</h3>
           <thead>
             <tr>
               <th>Attendance ID</th>
               <th>Name</th>
               <th>User Type</th>
               <th>Join Time</th>
-              <th>Status</th>
+              <th class="status-col">Status</th> <!-- new column for toggle buttons -->
             </tr>
           </thead>
+
           <tbody>
             {% if present_ids %}
               {% for id, data in present_ids.items() %}
@@ -72,16 +77,109 @@
                 <td>{{ data['name'] }}</td>
                 <td>{{ data['user_type'] }}</td>
                 <td>{{ data.get('lecturer_join_time') or data.get('student_join_time') }}</td>
-                <td>{{ data['status'] }}</td>
+                  <td class="status-col">
+                    Present
+                  </td>
               </tr>
               {% endfor %}
             {% else %}
               <tr>
-                <td colspan="3">No attendance records found</td>
+                <td colspan="3">No attendance records found for present</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+
+        </br>
+
+        <table class="table" id="absent-table">
+          <h3>Absent</h3>
+          <thead>
+            <tr>
+              <th>Attendance ID</th>
+              <th>Name</th>
+              <th>User Type</th>
+              <th>Join Time</th>
+              <th class="status-col">Status</th> <!-- new column for toggle buttons -->
+            </tr>
+          </thead>
+          <tbody>
+            {% if absent_ids %}
+              {% for id, data in absent_ids.items() %}
+              <tr class="{{ 'table-primary' if data['user_type'] == 'Lecturer' else '' }}">
+                <td>{{ id }}</td>
+                <td>{{ data['name'] }}</td>
+                <td>{{ data['user_type'] }}</td>
+                <td>None</td>
+                  <td class="status-col">
+                    Absent
+                  </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="3">No attendance records found for absent</td>
               </tr>
             {% endif %}
           </tbody>
         </table>
     </div>
+
+    <script>
+    {#for the code below, first change that when the edit button is clicked, it will display the 5th col, which are the status col and all the toggle buttons, the toggle buttons should be able to toggle to active and nonactive back to back, the active should show present, and the nonactive should show absent, present should be true, absent should be false, then when the update button is clicked, it should pop out a confirmation for the user to confirm to update the attendance, once it is confirmed, update the 2 tables based on the toggled buttons, if active means present and should be in the present table, if nonactive means absent and should be in the absent table, then update the records in firebase realtime db.#}
+
+    // Get the "Edit" button element
+    var editBtn = document.getElementById("edit-attendance-btn");
+
+    // Get the present_table and absent_table elements
+    var presentTable = document.getElementById("present-table");
+    var absentTable = document.getElementById("absent-table");
+
+    // Get the fifth column header and cells for both tables
+    var statusHeaders = document.querySelectorAll("th:nth-child(5)");
+    var presentStatusCells = presentTable.querySelectorAll("td:nth-child(5)");
+    var absentStatusCells = absentTable.querySelectorAll("td:nth-child(5)");
+
+    {#CHECKPOINT#}
+
+
+    // Hide the fifth column by default
+    statusHeaders.forEach(function(header) {
+      header.style.display = "none";
+    });
+    presentStatusCells.forEach(function(cell) {
+      cell.style.display = "none";
+    });
+    absentStatusCells.forEach(function(cell) {
+      cell.style.display = "none";
+    });
+
+    // Add a click event listener to the "Edit" button
+    editBtn.addEventListener("click", function() {
+      // Toggle the visibility of the fifth column header and cells for both tables
+      if (statusHeaders[0].style.display === "none") {
+        statusHeaders.forEach(function(header) {
+          header.style.display = "table-cell";
+        });
+        presentStatusCells.forEach(function(cell) {
+          cell.style.display = "table-cell";
+        });
+        absentStatusCells.forEach(function(cell) {
+          cell.style.display = "table-cell";
+        });
+      } else {
+        statusHeaders.forEach(function(header) {
+          header.style.display = "none";
+        });
+        presentStatusCells.forEach(function(cell) {
+          cell.style.display = "none";
+        });
+        absentStatusCells.forEach(function(cell) {
+          cell.style.display = "none";
+        });
+      }
+    });
+
+    </script>
 
 {% endblock %}
