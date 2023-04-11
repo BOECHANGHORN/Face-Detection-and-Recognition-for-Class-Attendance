@@ -78,7 +78,19 @@
                 <td>{{ data['user_type'] }}</td>
                 <td>{{ data.get('lecturer_join_time') or data.get('student_join_time') }}</td>
                   <td class="status-col">
-                    Present
+                      {% if data['user_type'] == 'Lecturer' %}
+                        <label class="switch">
+                          <div onclick="alert('You can not change the lecturer\'s attendance')">
+                            <input type="checkbox" checked disabled>
+                            <span class="slider round" style="background-color: lightseagreen;"></span>
+                          </div>
+                        </label>
+                      {% else %}
+                        <label class="switch">
+                          <input type="checkbox" checked>
+                          <span class="slider round"></span>
+                        </label>
+                      {% endif %}
                   </td>
               </tr>
               {% endfor %}
@@ -110,9 +122,12 @@
                 <td>{{ id }}</td>
                 <td>{{ data['name'] }}</td>
                 <td>{{ data['user_type'] }}</td>
-                <td>None</td>
+                <td>{{ data.get('lecturer_join_time') or data.get('student_join_time') }}</td>
                   <td class="status-col">
-                    Absent
+                    <label class="switch">
+                        <input type="checkbox">
+                        <span class="slider round"></span>
+                    </label>
                   </td>
               </tr>
               {% endfor %}
@@ -126,7 +141,6 @@
     </div>
 
     <script>
-    {#for the code below, first change that when the edit button is clicked, it will display the 5th col, which are the status col and all the toggle buttons, the toggle buttons should be able to toggle to active and nonactive back to back, the active should show present, and the nonactive should show absent, present should be true, absent should be false, then when the update button is clicked, it should pop out a confirmation for the user to confirm to update the attendance, once it is confirmed, update the 2 tables based on the toggled buttons, if active means present and should be in the present table, if nonactive means absent and should be in the absent table, then update the records in firebase realtime db.#}
 
     // Get the "Edit" button element
     var editBtn = document.getElementById("edit-attendance-btn");
@@ -139,8 +153,6 @@
     var statusHeaders = document.querySelectorAll("th:nth-child(5)");
     var presentStatusCells = presentTable.querySelectorAll("td:nth-child(5)");
     var absentStatusCells = absentTable.querySelectorAll("td:nth-child(5)");
-
-    {#CHECKPOINT#}
 
 
     // Hide the fifth column by default
@@ -157,7 +169,9 @@
     // Add a click event listener to the "Edit" button
     editBtn.addEventListener("click", function() {
       // Toggle the visibility of the fifth column header and cells for both tables
-      if (statusHeaders[0].style.display === "none") {
+      if (editBtn.innerHTML === "Edit") {
+        editBtn.innerHTML = "Save Changes";
+        editBtn.style.backgroundColor = "red";
         statusHeaders.forEach(function(header) {
           header.style.display = "table-cell";
         });
@@ -168,15 +182,66 @@
           cell.style.display = "table-cell";
         });
       } else {
-        statusHeaders.forEach(function(header) {
-          header.style.display = "none";
-        });
-        presentStatusCells.forEach(function(cell) {
-          cell.style.display = "none";
-        });
-        absentStatusCells.forEach(function(cell) {
-          cell.style.display = "none";
-        });
+        if (confirm("Do you want to save the changes?")) {
+          editBtn.innerHTML = "Edit";
+          editBtn.style.backgroundColor = "";
+          statusHeaders.forEach(function(header) {
+            header.style.display = "none";
+          });
+          presentStatusCells.forEach(function(cell) {
+            cell.style.display = "none";
+          });
+          absentStatusCells.forEach(function(cell) {
+            cell.style.display = "none";
+          });
+
+          // Create arrays to hold the IDs of present and absent attendees
+            var presentIds = [];
+            var absentIds = [];
+
+            // Loop through the present status cells and check if the checkbox is checked
+            presentStatusCells.forEach(function(cell) {
+              var checkbox = cell.querySelector("input[type=checkbox]");
+              if (checkbox.checked) {
+                // Get the ID of the attendee from the first column of the same row
+                var idCell = cell.parentElement.querySelector("td:first-child");
+                var id = idCell.textContent;
+                presentIds.push(id);
+              } else {
+                // Get the ID of the attendee from the first column of the same row
+                var idCell = cell.parentElement.querySelector("td:first-child");
+                var id = idCell.textContent;
+                absentIds.push(id);
+              }
+            });
+
+            // Loop through the absent status cells and check if the checkbox is checked
+            absentStatusCells.forEach(function(cell) {
+              var checkbox = cell.querySelector("input[type=checkbox]");
+              if (checkbox.checked) {
+                // Get the ID of the attendee from the first column of the same row
+                var idCell = cell.parentElement.querySelector("td:first-child");
+                var id = idCell.textContent;
+                presentIds.push(id);
+              } else {
+                // Get the ID of the attendee from the first column of the same row
+                var idCell = cell.parentElement.querySelector("td:first-child");
+                var id = idCell.textContent;
+                absentIds.push(id);
+              }
+            });
+
+          setTimeout(function() {
+            if (document.readyState === "complete") {
+              location.reload(true);
+            }
+          }, 100);
+
+          var xhr = new XMLHttpRequest();
+          xhr.open("POST", "/attendance_report/{{ selected_report_id }}");
+          xhr.setRequestHeader("Content-Type", "application/json;charset=UTF-8");
+          xhr.send(JSON.stringify({presentIds: presentIds, absentIds: absentIds}));
+        }
       }
     });
 

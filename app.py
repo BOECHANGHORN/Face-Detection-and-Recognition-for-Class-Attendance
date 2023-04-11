@@ -562,33 +562,77 @@ def view_attendance_report():
         return render_template('view_attendance_report.html', report_names_and_ids=report_names_and_ids)
 
 
-@app.route('/attendance_report/<selected_report_id>')
+@app.route('/attendance_report/<selected_report_id>', methods=['GET', 'POST'])
 def attendance_report(selected_report_id):
-    attendance_report_ref = db.reference('attendance_report')
+    if request.method == 'POST':
+        data = request.get_json()  # Parse JSON data from request
+        updated_present_ids = data['presentIds']  # Access 'presentIds' key from data
+        updated_absent_ids = data['absentIds']  # Access 'absentIds' key from data
 
-    # Get all the data from the attendance report reference
-    selected_report_data = attendance_report_ref.child(selected_report_id).get()
+        # Get all the data from the attendance report reference
+        attendance_report_ref = db.reference('attendance_report').child(selected_report_id)
+        selected_report_data = attendance_report_ref.get()
 
-    # Pass the data to the HTML template
-    present_ids = selected_report_data['present_ids'] if 'present_ids' in selected_report_data else {}
-    absent_ids = selected_report_data['absent_ids'] if 'absent_ids' in selected_report_data else {}
-    class_id = selected_report_data['class_id']
-    date = selected_report_data['date']
-    end_time = selected_report_data['end_time']
-    class_name = selected_report_data['name']
-    start_time = selected_report_data['start_time']
-    total_face_detected = selected_report_data['total_face_detected']
+        # Merge present_data and absent_data into a single dictionary
+        attendance_data = {}
+        for key in ['present_ids', 'absent_ids']:
+            if key in selected_report_data:
+                attendance_data.update(selected_report_data[key])
 
-    return render_template('attendance_report.html',
-                           selected_report_id=selected_report_id,
-                           present_ids=present_ids,
-                           absent_ids=absent_ids,
-                           class_id=class_id,
-                           date=date,
-                           end_time=end_time,
-                           class_name=class_name,
-                           start_time=start_time,
-                           total_face_detected=total_face_detected)
+        # Create updated dictionaries based on updated_present_ids and updated_absent_ids
+        updated_present_data = {uid: user_data for uid, user_data in attendance_data.items() if
+                                uid in updated_present_ids}
+        updated_absent_data = {uid: user_data for uid, user_data in attendance_data.items() if
+                               uid in updated_absent_ids}
+
+        print(updated_present_data)
+        print(updated_absent_data)
+
+        # Update the new data in the attendance_report node
+        attendance_report_ref.update({
+            'present_ids': updated_present_data,
+            'absent_ids': updated_absent_data
+        })
+
+        return ""
+
+    else:
+        attendance_report_ref = db.reference('attendance_report')
+
+        # # DUMMY DATA
+        # attendance_report_ref.child(selected_report_id).update({
+        #     'present_ids': {
+        #         '0001': {'lecturer_join_time': '2023-04-08 21:06:32', 'name': 'Eugene', 'user_type': 'Lecturer'},
+        #         '1181103320': {'name': 'Boe Chang Horn', 'student_join_time': '2023-04-08 21:06:33',
+        #                        'user_type': 'Student'}},
+        #     'absent_ids': {'1181103087': {'name': 'Jason', 'user_type': 'Student'},
+        #                    'shabi': {'name': 'Eugene', 'user_type': 'Student'}},
+        #
+        # })
+
+        # Get all the data from the attendance report reference
+        selected_report_data = attendance_report_ref.child(selected_report_id).get()
+
+        # Pass the data to the HTML template
+        present_data = selected_report_data.get('present_ids', {})
+        absent_data = selected_report_data.get('absent_ids', {})
+        class_id = selected_report_data['class_id']
+        date = selected_report_data['date']
+        end_time = selected_report_data['end_time']
+        class_name = selected_report_data['name']
+        start_time = selected_report_data['start_time']
+        total_face_detected = selected_report_data['total_face_detected']
+
+        return render_template('attendance_report.html',
+                               selected_report_id=selected_report_id,
+                               present_ids=present_data,
+                               absent_ids=absent_data,
+                               class_id=class_id,
+                               date=date,
+                               end_time=end_time,
+                               class_name=class_name,
+                               start_time=start_time,
+                               total_face_detected=total_face_detected)
 
 
 @app.route('/edit_classes')
