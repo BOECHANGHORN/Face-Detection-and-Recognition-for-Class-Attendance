@@ -12,6 +12,10 @@ import firebase_admin
 from firebase_admin import credentials, storage, db
 import threading
 
+
+# Set maximum number of image files
+MAX_IMAGE_FILES = 3
+
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
 
@@ -98,6 +102,8 @@ def get_password_and_salt(username, user_type):
     # Return the stored hashed password and salt
     return data['password'], data['salt']
 
+# TODO: MOUNT IN CAM
+# TODO: ADD IN COMPARISON MODEL
 
 @app.route('/dashboard')
 def dashboard():
@@ -114,11 +120,20 @@ def dashboard():
 def start_attendance():
     if request.method == 'GET':
         # Get all data from the "class" node in the realtime database
-        classes_ref = db.reference('class')
-        classes_data = classes_ref.get()
+        class_ref = db.reference('class')
+        classes_data = class_ref.get()
+
+        user_type = session['user_type']
+        user_id = session['user_id']
+
+        if user_type == UserType.ADMIN:
+            class_id = classes_data.keys()
+
+        elif user_type == UserType.LECTURER:
+            class_id = [code for code in classes_data.keys() if classes_data[code]['lecturer'] == user_id]
 
         # Extract the names and IDs of the classes from the data
-        class_names_and_ids = [(data['name'], key) for key, data in classes_data.items()]
+        class_names_and_ids = [(classes_data[code]['name'], code) for code in class_id]
 
         return render_template('start_attendance.html', class_names_and_ids=class_names_and_ids)
     else:
@@ -412,24 +427,33 @@ def markAttendance(id, signed_id, attendance_report_ref, lecturer_id):
 @app.route('/register_new_user', methods=['GET', 'POST'])
 def register_new_user():
     if request.method == 'POST':
+
         # Get the form data from the request
         user_type = request.form['user_type']
         name = request.form['name']
         id = request.form['id']
         password = request.form['password']
-        image = request.files['image']
+        images = request.files.getlist('image')
 
-        # TODO: comment this if not needed for validation
-        # Save the image to a temporary location
-        image.save('static/Images/tmp.jpg')
+        # Limit the number of images to 3
+        images = images[:MAX_IMAGE_FILES]
 
-        # Get a reference to the storage bucket and create a blob
-        bucket = storage.bucket()
-        blob = bucket.blob(f'{user_type}/{id}/{id}.jpg')
+        num_images = 0
 
-        # Upload the image to the blob
-        image.seek(0)
-        blob.upload_from_file(image)
+        # Loop through each image and upload it to the storage bucket
+        for i, image in enumerate(images):
+            # Save the image to a temporary location
+            image.save(f'static/Images/tmp{i + 1}.jpg')
+
+            # Get a reference to the storage bucket and create a blob
+            bucket = storage.bucket()
+            blob = bucket.blob(f'{user_type}/{id}/{id}_{i + 1}.jpg')
+
+            # Upload the image to the blob
+            image.seek(0)
+            blob.upload_from_file(image)
+
+            num_images = i + 1
 
         # Generate a salt and hash the password using the salt
         salt = bcrypt.gensalt()
@@ -445,7 +469,8 @@ def register_new_user():
             'name': name,
             'password': hashed_password_base64,
             'salt': salt_base64,
-            'image_url': blob.public_url
+            'num_images': num_images,
+            'image_url': '/'.join(blob.public_url.split('/')[:-1] + ['...']),
         })
 
         # Redirect to the success page
@@ -477,27 +502,40 @@ def generate_encoding():
 
             # Loop through the documents in the collection
             for id, data in collection_ref.items():
-                # Get the image blob from the storage
-                image_blob = bucket.get_blob(f'{user_type}/{id}/{id}.jpg')
+                # List all blobs with matching prefix
+                blobs = bucket.list_blobs(prefix=f"{user_type}/{id}/{id}")
 
-                # Skip processing if the image blob is None
-                if image_blob is None:
-                    continue
+                # Loop through the blobs
+                for blob in blobs:
+                    # Get the image blob from the storage
+                    image_blob = bucket.get_blob(blob.name)
 
-                # Read the image data as an array using cv2
-                image_array = np.frombuffer(image_blob.download_as_string(), np.uint8)
-                image = cv2.imdecode(image_array, cv2.COLOR_BGRA2BGR)
+                    # Skip processing if the image blob is None
+                    if image_blob is None:
+                        print(f"{blob.name} has no image")
+                        continue
 
-                # Pass the image array to the generate_encodings function
-                encoding = get_encodings([image])
-                face_detected = True
+                    # Read the image data as an array using cv2
+                    image_array = np.frombuffer(image_blob.download_as_string(), np.uint8)
+                    image = cv2.imdecode(image_array, cv2.COLOR_BGRA2BGR)
 
-                if not encoding:
-                    face_detected = False
-                    message.append(f"No face detected for {user_type} : {id}")
+                    # # Display the image
+                    # cv2.imshow('Image', image)
+                    # cv2.waitKey(0)
 
-                # Add the id and encoding to the encodings list
-                encodings.append([id, encoding, face_detected])
+                    # Pass the image array to the generate_encodings function
+                    encoding = get_encodings([image])
+                    face_detected = True
+
+                    if not encoding:
+                        face_detected = False
+                        message.append(f"No face detected for {user_type} : {id}, on {blob.name}")
+
+                    # Add the id and encoding to the encodings list
+                    encodings.append([id, encoding, face_detected])
+
+            # # Debug
+            # print(encodings)
 
             # Serialize the encoding list and name it with the user_type
             serialized_encoding = pickle.dumps(encodings)
@@ -518,7 +556,7 @@ def generate_encoding():
         return message
 
     else:
-        # Return the generate encoding template
+        # Return generate encoding template
         return render_template('generate_encoding.html')
 
 
@@ -640,18 +678,18 @@ def edit_classes():
     user_type = session.get('user_type')
     user_id = session.get('user_id')
 
-    classes_ref = db.reference('class')
-    if user_type == UserType.LECTURER:
-        classes_ref = classes_ref.order_by_child('lecturer').equal_to(user_id)
-    else:
-        classes_ref = classes_ref.order_by_key()
+    class_ref = db.reference('class')
+    classes_data = class_ref.get()
 
     classes = []
-    classes_data = classes_ref.get()
+
     if classes_data:
         for class_id, class_data in classes_data.items():
-            class_data['id'] = class_id
-            classes.append(class_data)
+            # Admin: Get all classes
+            # Lecturer: Only get classes which is assigned
+            if user_type == UserType.ADMIN or class_ref.child(class_id).child('lecturer').get() == user_id:
+                class_data['id'] = class_id
+                classes.append(class_data)
 
     return render_template('edit_classes.html', classes=classes)
 
@@ -714,17 +752,75 @@ def edit_class(class_id):
     return render_template('edit_class.html', class_data=class_data, students=students)
 
 
-# TODO: finish those features
-@app.route('/edit_details')
+@app.route('/edit_details', methods=['GET', 'POST'])
 def edit_details():
-    return render_template('edit_details.html')
+    user_type = session['user_type']
+    user_id = session['user_id']
+
+    if request.method == 'POST':
+        # Get the form data from the request
+        name = request.form['name']
+        password = request.form['password']
+        images = request.files.getlist('image')
+
+        # Limit the number of images to 3
+        images = images[:MAX_IMAGE_FILES]
+
+        # Loop through each image and upload it to the storage bucket
+        for i, image in enumerate(images):
+            # Save the image to a temporary location
+            image.save(f'static/Images/tmp{i + 1}.jpg')
+
+            # Get a reference to the storage bucket and create a blob
+            bucket = storage.bucket()
+            blob = bucket.blob(f'{user_type}/{user_id}/{user_id}_{i + 1}.jpg')
+
+            # Upload the image to the blob
+            image.seek(0)
+            blob.upload_from_file(image)
+
+        # Generate a salt and hash the password using the salt
+        salt = bcrypt.gensalt()
+        hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
+
+        # Encode the hashed password and salt as base64-encoded strings
+        hashed_password_base64 = base64.b64encode(hashed_password).decode('utf-8')
+        salt_base64 = base64.b64encode(salt).decode('utf-8')
+
+        # Add the user data to the Realtime Database
+        ref = db.reference(user_type)
+        ref.child(user_id).set({
+            'name': name,
+            'password': hashed_password_base64,
+            'salt': salt_base64,
+            'image_url': '/'.join(blob.public_url.split('/')[:-1] + ['...']),
+        })
+
+        return redirect(url_for('edit_details'))
+
+    else:
+        # Get a reference to the bucket
+        bucket = storage.bucket()
+
+        # List all blobs with matching prefix
+        blobs = bucket.list_blobs(prefix=f"{user_type}/{user_id}/{user_id}")
+
+        # Create an empty list to store the base64 encoded images
+        image_data = []
+
+        # Loop through the blobs
+        for blob in blobs:
+            # Get the image blob from the storage
+            image_blob = bucket.get_blob(blob.name)
+
+            # Convert the image blob to a base64 encoded string
+            if image_blob is not None:
+                image_data.append(base64.b64encode(image_blob.download_as_bytes()).decode('utf-8'))
+
+        return render_template('edit_details.html', image_data=image_data)
 
 
-@app.route('/add_image')
-def add_image():
-    return render_template('add_image.html')
-
-
+# TODO: low priority
 @app.route('/capture_face')
 def capture_face():
     return render_template('capture_face.html')

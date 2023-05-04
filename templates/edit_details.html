@@ -2,12 +2,46 @@
 
 {% block content %}
 
-    <title>Edit Details</title>
+<style>
+    img {
+        max-width: 500px;
+        width: 70%;
+        height: auto;
+    }
+</style>
+
+<title>Edit Details</title>
+
     <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" integrity="sha384-JcKb8q3iqJ61gNV9KGb8thSsNjpSL0n8PARn9HuZOnIxN0hoP+VmmDGMN5t9UJ0Z" crossorigin="anonymous">
     <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/register_new_user.css') }}">
 
+    <div class="container">
+      <div class="row justify-content-center">
+        {% for image in image_data %}
+        <div class="col-md-4 mb-4">
+          <div class="card col-12 text-center">
+            <img class="card-img-top" src="data:image/png;base64,{{ image }}" alt="Image">
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+         {% if image_data %}
+        <div class="col-12 text-center">
+            <p>Current Uploaded Images</p>
+        </div>
+        {% endif %}
+    </div>
+
+
+    </br>
 
    <form id="register-form" method="post" enctype="multipart/form-data">
+    <div class="form-group">
+        <!-- Image input field -->
+        <label for="name">Upload Images</label>
+        <input type="file" class="form-control-file" id="image" name="image" accept="image/*" multiple required>
+        <label>Only submit 3 images</label>
+    </div>
     <div class="form-group">
         <!-- Name input field -->
         <label for="name">Name</label>
