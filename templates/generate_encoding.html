@@ -3,15 +3,21 @@
 {% block content %}
   <link rel="stylesheet" href="{{ url_for('static', filename='assets/css/generate_encoding.css') }}">
 
-  <h2 style="font-size: 2em; font-weight: bold; color: #333;">Generate Encoding</h2>
+    <div style="margin-left: 10%;">
+    <div>
+        <h2 style="text-align:left;">Generate Encoding</h2>
+    </div>
 
-  <div class="flash-area">
+    <p>The system would fetch all the user records from the database and generate face encodings based on the face images.</p>
 
-  </div>
+    <div class="flash-area">
+    </div>
 
   <div class="train-model-button-container">
     <button id="train-model-button" onclick="startTraining()">Start Encoding</button>
   </div>
+
+    </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
   <script src="{{ url_for('static', filename='assets/js/generate_encoding.js') }}"></script>

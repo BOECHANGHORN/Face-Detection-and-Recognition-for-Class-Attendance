@@ -1,82 +1,142 @@
-{% extends 'base.html' %}
+{% extends 'base.html' %} {% block content %}
+<style>
+  @keyframes move {
+    from {
+      width: 0%;
+    }
 
-{% block content %}
-    <style>
-        @keyframes move {
-            from {width: 0%;}
-            to {width: 100%;}
-        }
-    </style>
+    to {
+      width: 100%;
+    }
+  }
 
-  <div class="container-fluid mt-3">
-    <div class="row">
-      <div class="col-md-10">
-        <h2>Dashboard</h2>
-        <div class="row mt-3">
-          <div class="col-md-12 mb-3">
-            <div class="card shadow">
-              <div class="card-body">
-                <h5 class="card-title text-center">Attendance Performance</h5>
-                <img src="/static/Images/fake_chart.png" alt="your image" class="img-fluid mx-auto d-block" width="100%">
-              </div>
+  .card-text {
+      font-size: 30px; /* adjust the font size as needed */
+      text-align: center;
+    }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<div class="container-fluid mt-3">
+  <div class="row">
+    <div class="col-md-10">
+      <h2>Dashboard</h2>
+      <div class="row mt-3">
+        <div class="col-md-12 mb-3">
+          <div class="card shadow">
+            <div class="card-body">
+              <h5 class="card-title text-center">Attendance Performance</h5>
+              <canvas id="attendanceChart"></canvas>
             </div>
           </div>
-          <div class="col-md-6 mb-3">
-            <div class="card shadow">
-              <div class="card-body">
-                <h5 class="card-title">Detection Statistics</h5>
-                <p>Total faces detected: 100</p>
-                <p>Total faces unrecognized: 5</p>
-              </div>
+        </div>
+        <div class="col-md-3 mb-3">
+          <div class="card shadow" style="height: 100%;">
+            <img src="/static/Images/cctv.jpg" class="card-img-top" alt="..." style="height: 55%;">
+            <div class="card-body">
+              <h5 class="card-title">Number of Face Detected</h5>
+              <p>({{ today_date }})</p>
+              <p class="card-text"><strong>{{ num_face_detected }}</strong></p>
             </div>
           </div>
-          <div class="col-md-6 mb-3">
-            <div class="card shadow">
-              <div class="card-body">
-                <h5 class="card-title">Generate Encodings</h5>
-                <div class="progress">
-                  <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 25%; animation: move 2s linear infinite;" aria-valuenow="25" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+         <div class="col-md-3 mb-3">
+          <div class="card shadow" style="height: 100%;">
+            <img src="/static/Images/class_time.jpg" class="card-img-top" alt="..." style="height: 55%;">
+            <div class="card-body">
+              <h5 class="card-title">Avg Class Duration (min)</h5>
+              <p>({{ today_date }})</p>
+              <p class="card-text"><strong>{{ avg_class_duration }}</strong></p>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-3 mb-3">
+          <div class="card shadow" style="height: 100%;">
+            <img src="/static/Images/student.jpg" class="card-img-top" alt="... " style="height: 55%;">
+            <div class="card-body">
+              <h5 class="card-title">Number of Students</h5>
+              <p>({{ today_date }})</p>
+              <p class="card-text"><strong>{{ num_student }}</strong></p>
+            </div>
+          </div>
+        </div>
+          <div class="col-md-3 mb-3">
+              <div class="card shadow" style="height: 100%;">
+                <img src="/static/Images/lecturer.jpg" class="card-img-top" alt="..." style="height: 55%;">
+                <div class="card-body">
+                  <h5 class="card-title">Number of Lecturers</h5>
+              <p>({{ today_date }})</p>
+                  <p class="card-text"><strong>{{ num_lecturer }}</strong></p>
                 </div>
-                <p>Encode in progress...</p>
               </div>
             </div>
-          </div>
-          <div class="col-md-12">
-            <div class="card shadow">
-              <div class="card-body">
-                <h5 class="card-title">Classes Registered</h5>
-                    <table class="table">
-                      <thead>
-                        <tr>
-                          <th scope="col">#</th>
-                          <th scope="col">ID</th>
-                          <th scope="col">Class</th>
-                          <th scope="col">Lecturer</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {% for i, (c_id, c) in classes.items()|enumerate_custom %}
-                          <tr>
-                            <th scope="row">{{ i + 1 }}</th>
-                            <td>{{ c_id }}</td>
-                            <td>{{ c.name }}</td>
-                            <td>{{ c.lecturer }}</td>
-                          </tr>
-                        {% endfor %}
-                      </tbody>
-                    </table>
-
-              </div>
+        </div>
+        <div class="col-md-12">
+          <div class="card shadow">
+            <div class="card-body">
+              <h5 class="card-title">Classes Registered</h5>
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">ID</th>
+                    <th scope="col">Class</th>
+                    <th scope="col">Lecturer</th>
+                  </tr>
+                </thead>
+                <tbody> {% for i, (c_id, c) in classes.items()|enumerate_custom %} <tr>
+                    <th scope="row">{{ i + 1 }}</th>
+                    <td>{{ c_id }}</td>
+                    <td>{{ c.name }}</td>
+                    <td>{{ c.lecturer }}</td>
+                  </tr> {% endfor %} </tbody>
+              </table>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
-
-{% endblock %}
-
-
-
-
-
+</div>
+<script>
+  var ctx = document.getElementById('attendanceChart').getContext('2d');
+  var data = JSON.parse('{{ chart_data | tojson | safe }}');
+  var chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.dates,
+      datasets: [{
+        label: 'Present',
+        data: data.present,
+        borderColor: 'green',
+        fill: false
+      }, {
+        label: 'Absent',
+        data: data.absent,
+        borderColor: 'red',
+        fill: false
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        xAxes: [{
+          display: true,
+          scaleLabel: {
+            display: true,
+            labelString: 'Date'
+          }
+        }],
+        yAxes: [{
+          display: true,
+          scaleLabel: {
+            display: true,
+            labelString: 'Number of Students'
+          },
+          ticks: {
+            beginAtZero: true
+          }
+        }]
+      }
+    }
+  });
+</script> {% endblock %}

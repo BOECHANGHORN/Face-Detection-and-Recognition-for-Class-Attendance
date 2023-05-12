@@ -2,7 +2,10 @@ import base64
 import itertools
 import pickle
 import secrets
-from datetime import datetime
+from datetime import datetime, timedelta, date
+import pandas as pd
+from tqdm import tqdm
+
 import bcrypt as bcrypt
 import face_recognition
 import numpy as np
@@ -12,9 +15,13 @@ import firebase_admin
 from firebase_admin import credentials, storage, db
 import threading
 
-
 # Set maximum number of image files
 MAX_IMAGE_FILES = 3
+
+# 0 : rtsp
+# 1 : webcam
+CAM_MODE = 0
+RTSP_URL = "rtsp://boecam:boecam@192.168.0.139/stream2"
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
@@ -102,18 +109,96 @@ def get_password_and_salt(username, user_type):
     # Return the stored hashed password and salt
     return data['password'], data['salt']
 
-# TODO: MOUNT IN CAM
+
 # TODO: ADD IN COMPARISON MODEL
 
 @app.route('/dashboard')
 def dashboard():
-    ref = db.reference('class')
     # Get the data from the realtime database
+    ref = db.reference('class')
     classes = ref.get()
 
-    # TODO: dashboard features
+    report_ref = db.reference('attendance_report')
+    reports = report_ref.get()
 
-    return render_template('dashboard.html', classes=classes)
+    student_ref = db.reference('student')
+    student_data = student_ref.get()
+
+    lecturer_ref = db.reference('lecturer')
+    lecturer_data = lecturer_ref.get()
+
+    # Chart
+    # Generate dates for the last 7 days
+    dates = [(datetime.now() - timedelta(days=i)).strftime('%Y-%m-%d') for i in range(6, -1, -1)]
+
+    # Dummy data
+    # present = [30, 45, 50, 70, 80, 90, 95]
+    # absent = [10, 5, 2, 7, 12, 8, 5]
+
+    # Fetch and process data from database
+    # initialize present and absent lists with 0s for 7 days ago until today
+    present = [0] * 7
+    absent = [0] * 7
+
+    # loop through reports.key and update present and absent lists accordingly
+    for i in range(7):
+        date_str = (datetime.now() - timedelta(days=i)).strftime('%d%m%y')
+
+        for current_key in reports.keys():
+            if date_str in current_key:
+                # print(current_key, "Present", len(reports[current_key].get('present_ids', [])),
+                #       reports[current_key].get('present_ids', []))
+                # print(current_key, "Absent", len(reports[
+                #                                      current_key].get('absent_ids', [])),
+                #       reports[current_key].get('absent_ids', []))
+
+                present[i] += len(reports[current_key].get('present_ids', []))
+                absent[i] += len(reports[current_key].get('absent_ids', []))
+
+    # reverse the order of present and absent lists to match the order of days
+    present = present[::-1]
+    absent = absent[::-1]
+
+    # Create a DataFrame from the data
+    df = pd.DataFrame({'Date': dates, 'Present': present, 'Absent': absent})
+
+    # Convert data to JSON object
+    chart_data = {
+        'dates': df['Date'].tolist(),
+        'present': df['Present'].tolist(),
+        'absent': df['Absent'].tolist()
+    }
+
+    # Get today's date
+    today_date = date.today().strftime("%Y-%m-%d")
+    date_str = date.today().strftime('%d%m%y')
+
+    num_face_detected = 0
+    total_time = 0
+    counter = 0
+
+    for current_key in reports.keys():
+        if date_str in current_key:
+            num_face_detected += reports[current_key]['total_face_detected']
+
+            if reports[current_key]['start_time'] and reports[current_key]['end_time']:
+                start_time = datetime.strptime(reports[current_key]['start_time'], '%H:%M:%S')
+                end_time = datetime.strptime(reports[current_key]['end_time'], '%H:%M:%S')
+                time_diff = (end_time - start_time).total_seconds() / 60
+                total_time += time_diff
+                counter += 1
+
+    if counter > 0:
+        avg_class_duration = "{:.3f}".format(total_time / counter)
+    else:
+        avg_class_duration = 0
+
+    num_student = len(student_data)
+    num_lecturer = len(lecturer_data)
+
+    return render_template('dashboard.html', classes=classes, chart_data=chart_data, today_date=today_date,
+                           num_face_detected=num_face_detected, avg_class_duration=avg_class_duration,
+                           num_student=num_student, num_lecturer=num_lecturer)
 
 
 @app.route('/start_attendance', methods=['GET', 'POST'])
@@ -345,44 +430,55 @@ class FaceRecognitionThread(threading.Thread):
         match_id = [record[0] for record in student_pkl]
         encode_list_known = list(itertools.chain.from_iterable([record[1] for record in student_pkl]))
 
-        cap = cv2.VideoCapture(0)
+        if CAM_MODE == 0:
+            cap = cv2.VideoCapture(RTSP_URL)
+        elif CAM_MODE == 1:
+            cap = cv2.VideoCapture(0)
+
         cap.set(3, 640)
         cap.set(4, 480)
 
         # Create a list of signed attendance and signed name
         signed_id = []  # Used for validating duplicates
+        process_this_frame = True
 
         while True:
             success, img = cap.read()
             if not success:
                 break
-            img_s = cv2.resize(img, (0, 0), None, 0.25, 0.25)
-            img_s = cv2.cvtColor(img_s, cv2.COLOR_BGR2RGB)
 
-            face_cur_frame = face_recognition.face_locations(img_s)
-            encode_cur_frame = face_recognition.face_encodings(img_s, face_cur_frame)
+            # Only process every other frame of video to save time
+            if process_this_frame:
 
-            if face_cur_frame:
-                for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
+                img_s = cv2.resize(img, (0, 0), None, 0.25, 0.25)
+                img_s = cv2.cvtColor(img_s, cv2.COLOR_BGR2RGB)
 
-                    matches = face_recognition.compare_faces(encode_list_known, encodeFace, 0.6)
-                    face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
+                face_cur_frame = face_recognition.face_locations(img_s)
+                encode_cur_frame = face_recognition.face_encodings(img_s, face_cur_frame)
 
-                    match_index = np.argmin(face_dis)
+                if face_cur_frame:
+                    for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
 
-                    if matches[match_index]:
-                        id = match_id[match_index]
-                    else:
-                        id = "Unknown"
+                        matches = face_recognition.compare_faces(encode_list_known, encodeFace, 0.54)
+                        face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
 
-                    # Draw a rectangle around the face and display the name
-                    top, right, bottom, left = faceLoc
-                    top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
-                    cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
-                    cv2.putText(img, str(id), (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+                        match_index = np.argmin(face_dis)
 
-                    if id != "Unknown":
-                        signed_id = markAttendance(id, signed_id, self.attendance_report_ref, lecturer_id)
+                        if matches[match_index]:
+                            id = match_id[match_index]
+                        else:
+                            id = "Unknown"
+
+                        # Draw a rectangle around the face and display the name
+                        top, right, bottom, left = faceLoc
+                        top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
+                        cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
+                        cv2.putText(img, str(id), (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+
+                        if id != "Unknown":
+                            signed_id = markAttendance(id, signed_id, self.attendance_report_ref, lecturer_id)
+
+            process_this_frame = not process_this_frame
 
             ret, buffer = cv2.imencode('.jpg', img)
             frame = buffer.tobytes()
@@ -440,13 +536,28 @@ def register_new_user():
 
         num_images = 0
 
+        # Get a reference to the storage bucket
+        bucket = storage.bucket()
+
+        # Get pickle file for respective user type
+        if user_type == UserType.LECTURER:
+            # Download the lecturer pickle file from Firebase Storage
+            lecturer_pkl_ref = storage.bucket().blob('pickle/lecturer.pkl')
+            lecturer_pkl_bytes = lecturer_pkl_ref.download_as_bytes()
+            pkl_file = pickle.loads(lecturer_pkl_bytes)
+
+        elif user_type == UserType.STUDENT:
+            # Download the student pickle file from Firebase Storage
+            student_pkl_ref = storage.bucket().blob('pickle/student.pkl')
+            student_pkl_bytes = student_pkl_ref.download_as_bytes()
+            pkl_file = pickle.loads(student_pkl_bytes)
+
         # Loop through each image and upload it to the storage bucket
         for i, image in enumerate(images):
             # Save the image to a temporary location
             image.save(f'static/Images/tmp{i + 1}.jpg')
 
-            # Get a reference to the storage bucket and create a blob
-            bucket = storage.bucket()
+            # Create a blob
             blob = bucket.blob(f'{user_type}/{id}/{id}_{i + 1}.jpg')
 
             # Upload the image to the blob
@@ -463,7 +574,58 @@ def register_new_user():
         hashed_password_base64 = base64.b64encode(hashed_password).decode('utf-8')
         salt_base64 = base64.b64encode(salt).decode('utf-8')
 
+        # Generate encodings from the newly added images
+        # List all blobs with matching prefix
+        blobs = bucket.list_blobs(prefix=f"{user_type}/{id}/{id}")
+
+        detected = False
+
+        # Loop through the blobs
+        for blob in tqdm(blobs, desc=f"Processing {id}"):
+            # Get the image blob from the storage
+            image_blob = bucket.get_blob(blob.name)
+
+            # Skip processing if the image blob is None
+            if image_blob is None:
+                print(f"{blob.name} has no image")
+                continue
+
+            # Read the image data as an array using cv2
+            image_array = np.frombuffer(image_blob.download_as_string(), np.uint8)
+            image = cv2.imdecode(image_array, cv2.COLOR_BGRA2BGR)
+
+            # # Display the image
+            # cv2.imshow('Image', image)
+            # cv2.waitKey(0)
+
+            # Pass the image array to the generate_encodings function
+            encoding = get_encodings([image])
+            face_detected = False
+
+            if encoding:
+                face_detected = True
+                detected = True
+
+            # Add the id and encoding to the encodings list
+            pkl_file.append([id, encoding, face_detected])
+
+        # Sort encodings based on encode[2] with True above False
+        pkl_file = sorted(pkl_file, key=lambda encode: (encode[2], not encode[2]))
+
+        # # Debug
+        # print(pkl_file)
+
+        # Serialize the encoding list and name it with the user_type
+        serialized_encoding = pickle.dumps(pkl_file)
+        serialized_file = f'pickle/{user_type}.pkl'
+
+        # Upload the serialized encoding list to the storage
+        bucket.blob(serialized_file).upload_from_string(serialized_encoding)
+
         # Add the user data to the Realtime Database
+        current_time = datetime.now()
+        formatted_time = current_time.strftime('%Y-%m-%d %H:%M:%S')
+
         ref = db.reference(user_type)
         ref.child(id).set({
             'name': name,
@@ -471,10 +633,13 @@ def register_new_user():
             'salt': salt_base64,
             'num_images': num_images,
             'image_url': '/'.join(blob.public_url.split('/')[:-1] + ['...']),
+            'last_encode_time': formatted_time,
+            'face_detected': detected
         })
 
         # Redirect to the success page
         return redirect(url_for('register_success'))
+
     else:
         # Render the register form template
         return render_template('register_new_user.html')
@@ -501,7 +666,7 @@ def generate_encoding():
             collection_ref = db.reference(user_type).get()
 
             # Loop through the documents in the collection
-            for id, data in collection_ref.items():
+            for id, data in tqdm(collection_ref.items(), desc=f"Processing {user_type}"):
                 # List all blobs with matching prefix
                 blobs = bucket.list_blobs(prefix=f"{user_type}/{id}/{id}")
 
@@ -534,7 +699,13 @@ def generate_encoding():
                     # Add the id and encoding to the encodings list
                     encodings.append([id, encoding, face_detected])
 
+            # Sort encodings based on encode[2] with True above False
+            encodings = sorted(encodings, key=lambda encode: (encode[2], not encode[2]))
+
             # # Debug
+            # for encode in encodings:
+            #     print(encode[0], encode[2])
+            #
             # print(encodings)
 
             # Serialize the encoding list and name it with the user_type
@@ -831,6 +1002,7 @@ def enumerate_custom(seq):
     return enumerate(seq)
 
 
+# One-to-one function
 def get_encodings(image_list):
     encode_list = []
     for image in image_list:

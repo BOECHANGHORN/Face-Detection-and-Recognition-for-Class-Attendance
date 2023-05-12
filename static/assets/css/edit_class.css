@@ -1,0 +1,13 @@
+.form-check-input {
+  width: 15px;
+  height: 15px;
+  margin-right: 20px;
+}
+
+.form-check-label {
+    margin-left: 10px;
+  font-size: 16px;
+  color: #333;
+      line-height: 1.5rem; /* set to match the height of the parent container */
+
+}
