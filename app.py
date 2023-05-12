@@ -110,8 +110,6 @@ def get_password_and_salt(username, user_type):
     return data['password'], data['salt']
 
 
-# TODO: ADD IN COMPARISON MODEL
-
 @app.route('/dashboard')
 def dashboard():
     # Get the data from the realtime database
@@ -990,11 +988,11 @@ def edit_details():
 
         return render_template('edit_details.html', image_data=image_data)
 
-
+# TODO: ADD IN COMPARISON MODEL
 # TODO: low priority
-@app.route('/capture_face')
-def capture_face():
-    return render_template('capture_face.html')
+# @app.route('/capture_face')
+# def capture_face():
+#     return render_template('capture_face.html')
 
 
 @app.template_filter()
