@@ -20,7 +20,7 @@ MAX_IMAGE_FILES = 3
 
 # 0 : rtsp
 # 1 : webcam
-CAM_MODE = 0
+CAM_MODE = 1
 RTSP_URL = "rtsp://boecam:boecam@192.168.0.139/stream2"
 
 app = Flask(__name__)
@@ -1004,6 +1004,7 @@ def enumerate_custom(seq):
 def get_encodings(image_list):
     encode_list = []
     for image in image_list:
+        image = cv2.resize(image, (0, 0), None, 0.25, 0.25)
         # Convert color space from BGR to RGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
