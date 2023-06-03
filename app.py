@@ -20,8 +20,10 @@ MAX_IMAGE_FILES = 3
 
 # 0 : rtsp
 # 1 : webcam
-CAM_MODE = 1
+# 2 : test case
+CAM_MODE = 2
 RTSP_URL = "rtsp://boecam:boecam@192.168.0.139/stream2"
+TEST_CASE = "static/Videos/test_real_4.mp4"
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
@@ -432,6 +434,8 @@ class FaceRecognitionThread(threading.Thread):
             cap = cv2.VideoCapture(RTSP_URL)
         elif CAM_MODE == 1:
             cap = cv2.VideoCapture(0)
+        elif CAM_MODE == 2:
+            cap = cv2.VideoCapture(TEST_CASE)
 
         cap.set(3, 640)
         cap.set(4, 480)
@@ -457,7 +461,7 @@ class FaceRecognitionThread(threading.Thread):
                 if face_cur_frame:
                     for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
 
-                        matches = face_recognition.compare_faces(encode_list_known, encodeFace, 0.54)
+                        matches = face_recognition.compare_faces(encode_list_known, encodeFace, 0.49)
                         face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
 
                         match_index = np.argmin(face_dis)
@@ -988,11 +992,6 @@ def edit_details():
 
         return render_template('edit_details.html', image_data=image_data)
 
-# TODO: ADD IN COMPARISON MODEL
-# TODO: low priority
-# @app.route('/capture_face')
-# def capture_face():
-#     return render_template('capture_face.html')
 
 
 @app.template_filter()
