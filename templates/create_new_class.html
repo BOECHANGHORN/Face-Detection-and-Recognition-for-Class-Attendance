@@ -33,12 +33,13 @@
           <label>Select students to include in class:</label>
           <ul class="list-group">
             {% for student in students %}
-              <li class="list-group-item" onclick="toggleSelection(this)">{{ student.name }}</li>
-              <input type="hidden" name="student_ids" value="{{ student.id }}" class="selected-student">
+              <li class="list-group-item" onclick="toggleSelection(this)" data-student-id="{{ student.id }}">{{ student.id }}: {{ student.name }}</li>
+
             {% endfor %}
           </ul>
         </div>
-        <button type="submit" class="btn btn-primary">Create Class</button>
+        <input type="hidden" name="student_ids" value="" id="student_ids_input">
+        <button type="submit" class="btn btn-primary" onclick="prepareStudentIds()">Create Class</button>
       </form>
     {% else %}
       <p>No students available.</p>
@@ -47,8 +48,14 @@
   <script>
     function toggleSelection(li) {
       li.classList.toggle('active');
-      const hiddenInput = li.querySelector('.selected-student');
-      hiddenInput.disabled = !hiddenInput.disabled;
+    }
+
+    function prepareStudentIds() {
+      const selectedStudents = document.querySelectorAll('.list-group-item.active');
+      const selectedIds = Array.from(selectedStudents).map(li => li.dataset.studentId);
+
+      const studentIdsInput = document.getElementById('student_ids_input');
+      studentIdsInput.value = selectedIds.join(',');
     }
   </script>
 {% endblock %}

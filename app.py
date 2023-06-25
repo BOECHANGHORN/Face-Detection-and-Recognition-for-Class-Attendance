@@ -22,8 +22,9 @@ MAX_IMAGE_FILES = 3
 # 1 : webcam
 # 2 : test case
 CAM_MODE = 2
+
 RTSP_URL = "rtsp://boecam:boecam@192.168.0.139/stream2"
-TEST_CASE = "static/Videos/test_real_4.mp4"
+TEST_CASE = "static/Videos/test_real_demo.mp4"
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(16)
@@ -461,7 +462,7 @@ class FaceRecognitionThread(threading.Thread):
                 if face_cur_frame:
                     for encodeFace, faceLoc in zip(encode_cur_frame, face_cur_frame):
 
-                        matches = face_recognition.compare_faces(encode_list_known, encodeFace, 0.49)
+                        matches = face_recognition.compare_faces(encode_list_known, encodeFace, 0.45)
                         face_dis = face_recognition.face_distance(encode_list_known, encodeFace)
 
                         match_index = np.argmin(face_dis)
@@ -475,7 +476,7 @@ class FaceRecognitionThread(threading.Thread):
                         top, right, bottom, left = faceLoc
                         top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
                         cv2.rectangle(img, (left, top), (right, bottom), (0, 0, 255), 2)
-                        cv2.putText(img, str(id), (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2)
+                        cv2.putText(img, str(id), (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (0, 0, 255), 2)
 
                         if id != "Unknown":
                             signed_id = markAttendance(id, signed_id, self.attendance_report_ref, lecturer_id)
@@ -874,6 +875,7 @@ def create_new_class():
         class_name = request.form['class_name']
         lecturer = request.form['lecturer']
         student_ids = request.form.getlist('student_ids')
+        student_ids = [id.strip() for id in student_ids[0].split(',') if id.strip() != '']
 
         class_ref = db.reference(f'class/{class_id}')
         class_ref.set({
@@ -939,6 +941,8 @@ def edit_details():
         # Limit the number of images to 3
         images = images[:MAX_IMAGE_FILES]
 
+        num_images = 0
+
         # Loop through each image and upload it to the storage bucket
         for i, image in enumerate(images):
             # Save the image to a temporary location
@@ -952,6 +956,8 @@ def edit_details():
             image.seek(0)
             blob.upload_from_file(image)
 
+            num_images = i + 1
+
         # Generate a salt and hash the password using the salt
         salt = bcrypt.gensalt()
         hashed_password = bcrypt.hashpw(password.encode('utf-8'), salt)
@@ -962,10 +968,11 @@ def edit_details():
 
         # Add the user data to the Realtime Database
         ref = db.reference(user_type)
-        ref.child(user_id).set({
+        ref.child(user_id).update({
             'name': name,
             'password': hashed_password_base64,
             'salt': salt_base64,
+            'num_images': num_images,
             'image_url': '/'.join(blob.public_url.split('/')[:-1] + ['...']),
         })
 
@@ -993,7 +1000,6 @@ def edit_details():
         return render_template('edit_details.html', image_data=image_data)
 
 
-
 @app.template_filter()
 def enumerate_custom(seq):
     return enumerate(seq)
@@ -1003,7 +1009,7 @@ def enumerate_custom(seq):
 def get_encodings(image_list):
     encode_list = []
     for image in image_list:
-        image = cv2.resize(image, (0, 0), None, 0.25, 0.25)
+        # image = cv2.resize(image, (0, 0), None, 0.25, 0.25)
         # Convert color space from BGR to RGB
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
