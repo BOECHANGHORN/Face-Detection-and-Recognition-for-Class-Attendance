@@ -15,3 +15,5 @@ Run app.py
 Existing Model pipelines for experiment and model evaluation
 
 To install the required packages, "pip install -r requirements.txt".
+
+Each model pipeline consists of its own Python main file to run.
