@@ -9,7 +9,7 @@ Face recognition Attendance System Webapp
 
 To install the required packages, "pip install -r requirements.txt".
 
-
+Run app.py
 
 # FYP_ModelEvaluation
 Existing Model pipelines for experiment and model evaluation
