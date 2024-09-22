@@ -1,4 +1,4 @@
-This project presented a research paper titled "Face Detection and Recognition for Class Attendance" at the First International Conference on Artificial Intelligence and Autonomous Systems (I-CAIAS 2023), held online on December 18-19, 2023.
+# This project presented a research paper titled **Face Detection and Recognition for Class Attendance** at the _**First International Conference on Artificial Intelligence and Autonomous Systems (I-CAIAS 2023)**_, on December 18-19, 2023.
 
 # FYP 2 FINAL CODE SUBMISSION (FYP 2123: Face Detection and Recognition for Class Attendance)
 
